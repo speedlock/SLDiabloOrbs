@@ -405,6 +405,8 @@ local lastSafeHealth = 1
 local lastSafeMaxHealth = 1
 local lastSafePower = 1
 local lastSafeMaxPower = 1
+local lastSafeHealthPercent = nil
+local lastSafePowerPercent = nil
 local function monitorHealth(orb)
 	local rawMaxHealth = orb.rawMaxHealth or orb.maxHealth
 	local rawCurrentHealth = orb.rawCurrentHealth or orb.currentHealth
@@ -415,8 +417,8 @@ local function monitorHealth(orb)
 			orb.fillingBar:SetMinMaxValues(0, rawMaxHealth or 1)
 			orb.fillingBar:SetValue(rawCurrentHealth or 0)
 		end
-		orb.font1:SetText("?")
-		orb.font2:SetText(string.format("%s", rawCurrentHealth or ""))
+		orb.font1:SetText(string.format("%s", rawCurrentHealth or ""))
+		orb.font2:SetText("")
 		return
 	end
 	local maxHealth = rc32SafeNumber(rawMaxHealth, 1)
@@ -486,8 +488,8 @@ local function monitorPower(orb)
 			orb.fillingBar:SetMinMaxValues(0, rawMaxPower or 1)
 			orb.fillingBar:SetValue(rawCurrentPower or 0)
 		end
-		orb.font1:SetText("?")
-		orb.font2:SetText(string.format("%s", rawCurrentPower or ""))
+		orb.font1:SetText(string.format("%s", rawCurrentPower or ""))
+		orb.font2:SetText("")
 		return
 	end
 	local maxPower = rc32SafeNumber(rawMaxPower, 1)
@@ -552,6 +554,8 @@ local lastSafePetHealth = 0
 local lastSafePetMaxHealth = 1
 local lastSafePetPower = 0
 local lastSafePetMaxPower = 1
+local lastSafePetHealthPercent = nil
+local lastSafePetPowerPercent = nil
 local function PetHealthUpdate(orb)
 	local rawMaxHealth = orb.rawPetMaxHealth or orb.petMaxHealth
 	local rawCurrentHealth = orb.rawPetCurrentHealth or orb.petCurrentHealth
@@ -562,8 +566,8 @@ local function PetHealthUpdate(orb)
 			orb.filling1Bar:SetMinMaxValues(0, rawMaxHealth or 1)
 			orb.filling1Bar:SetValue(rawCurrentHealth or 0)
 		end
-		orb.font1:SetText("?")
-		orb.font3:SetText(string.format("%s", rawCurrentHealth or ""))
+		orb.font1:SetText(string.format("%s", rawCurrentHealth or ""))
+		orb.font3:SetText("")
 		return
 	end
 	local maxHealth = rc32SafeNumber(rawMaxHealth, 1)
@@ -628,8 +632,8 @@ local function PetPowerUpdate(orb)
 			orb.filling2Bar:SetMinMaxValues(0, rawMaxPower or 1)
 			orb.filling2Bar:SetValue(rawCurrentPower or 0)
 		end
-		orb.font2:SetText("?")
-		orb.font4:SetText(string.format("%s", rawCurrentPower or ""))
+		orb.font2:SetText(string.format("%s", rawCurrentPower or ""))
+		orb.font4:SetText("")
 		return
 	end
 	local maxPower = rc32SafeNumber(rawMaxPower, 1)
@@ -775,6 +779,9 @@ local function CreateOrb(parent,name,size,fillTexture,galaxyTexture,offsetX,offs
 	orb.fillingBar:SetMinMaxValues(0, 1)
 	orb.fillingBar:SetValue(1)
 	orb.fillingBar:Hide()
+	orb.fillingBarText = orb.fillingBar:CreateFontString(nil, "OVERLAY")
+	orb.fillingBarText:SetFont(RC32CharacterData.font,28,"THINOUTLINE")
+	orb.fillingBarText:SetPoint("CENTER",0,15)
 	local orbGlossHolder = CreateFrame("Frame",nil,orb)
 	orbGlossHolder:SetAllPoints(orb)
 	orbGlossHolder:SetFrameStrata("BACKGROUND")
@@ -864,6 +871,9 @@ local function CreatePetOrb(parent,name,size,offsetX,offsetY,monitorFunc)
 	orb.filling1Bar:SetMinMaxValues(0, 1)
 	orb.filling1Bar:SetValue(1)
 	orb.filling1Bar:Hide()
+	orb.filling1BarText = orb.filling1Bar:CreateFontString(nil, "OVERLAY")
+	orb.filling1BarText:SetFont(RC32CharacterData.font,14,"THINOUTLINE")
+	orb.filling1BarText:SetPoint("CENTER",-20,5)
 	orb.filling2 = orb:CreateTexture(nil,"BACKGROUND")
 	orb.filling2:SetTexture(images.."petFilling_power.tga")
 	orb.filling2:SetPoint("BOTTOMRIGHT",-3,0)
@@ -878,6 +888,9 @@ local function CreatePetOrb(parent,name,size,offsetX,offsetY,monitorFunc)
 	orb.filling2Bar:SetMinMaxValues(0, 1)
 	orb.filling2Bar:SetValue(1)
 	orb.filling2Bar:Hide()
+	orb.filling2BarText = orb.filling2Bar:CreateFontString(nil, "OVERLAY")
+	orb.filling2BarText:SetFont(RC32CharacterData.font,14,"THINOUTLINE")
+	orb.filling2BarText:SetPoint("CENTER",20,5)
 	local orbGlossHolder = CreateFrame("Frame",nil,orb)
 	orbGlossHolder:SetAllPoints(orb)
 	orbGlossHolder:SetFrameStrata("LOW")
@@ -2302,6 +2315,12 @@ local function RC32_UpdatePlayerVitals()
 	if rc32CanUseValue(rawMaxHealth) then lastSafeMaxHealth = safeMaxHealth end
 	if rc32CanUseValue(rawPower) then lastSafePower = safePower end
 	if rc32CanUseValue(rawMaxPower) then lastSafeMaxPower = safeMaxPower end
+	if rc32CanUseValue(rawHealth) and rc32CanUseValue(rawMaxHealth) and safeMaxHealth > 0 then
+		lastSafeHealthPercent = math.floor((safeHealth / safeMaxHealth) * 100)
+	end
+	if rc32CanUseValue(rawPower) and rc32CanUseValue(rawMaxPower) and safeMaxPower > 0 then
+		lastSafePowerPercent = math.floor((safePower / safeMaxPower) * 100)
+	end
 
 	healthOrb.currentHealth = safeHealth
 	healthOrb.maxHealth = safeMaxHealth
@@ -2342,6 +2361,12 @@ local function RC32_UpdatePetVitals()
 	if rc32CanUseValue(rawMaxHealth) then lastSafePetMaxHealth = safeMaxHealth end
 	if rc32CanUseValue(rawPower) then lastSafePetPower = safePower end
 	if rc32CanUseValue(rawMaxPower) then lastSafePetMaxPower = safeMaxPower end
+	if rc32CanUseValue(rawHealth) and rc32CanUseValue(rawMaxHealth) and safeMaxHealth > 0 then
+		lastSafePetHealthPercent = math.floor((safeHealth / safeMaxHealth) * 100)
+	end
+	if rc32CanUseValue(rawPower) and rc32CanUseValue(rawMaxPower) and safeMaxPower > 0 then
+		lastSafePetPowerPercent = math.floor((safePower / safeMaxPower) * 100)
+	end
 
 	petOrb.petCurrentHealth = safeHealth
 	petOrb.petMaxHealth = safeMaxHealth

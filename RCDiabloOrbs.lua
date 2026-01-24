@@ -407,6 +407,7 @@ local lastSafePower = 1
 local lastSafeMaxPower = 1
 local lastSafeHealthPercent = nil
 local lastSafePowerPercent = nil
+local RC32_GALAXY_ALPHA_MULTIPLIER = 0.5
 local function monitorHealth(orb)
 	local rawMaxHealth = orb.rawMaxHealth or orb.maxHealth
 	local rawCurrentHealth = orb.rawCurrentHealth or orb.currentHealth
@@ -472,9 +473,9 @@ local function monitorHealth(orb)
 	orb.filling:Show()
 	orb.filling:SetHeight(targetTexHeight)
 	orb.filling:SetTexCoord(0,1,math.abs(newDisplayPercentage - 1),1)
-	orb.galaxy1:SetAlpha(newDisplayPercentage)
-	orb.galaxy2:SetAlpha(newDisplayPercentage)
-	orb.galaxy3:SetAlpha(newDisplayPercentage)
+	orb.galaxy1:SetAlpha(newDisplayPercentage * RC32_GALAXY_ALPHA_MULTIPLIER)
+	orb.galaxy2:SetAlpha(newDisplayPercentage * RC32_GALAXY_ALPHA_MULTIPLIER)
+	orb.galaxy3:SetAlpha(newDisplayPercentage * RC32_GALAXY_ALPHA_MULTIPLIER)
 end
 
 local previousPowerValue = 0
@@ -544,9 +545,9 @@ local function monitorPower(orb)
 	orb.filling:Show()
 	orb.filling:SetHeight(targetTexHeight)
 	orb.filling:SetTexCoord(0,1,math.abs(newDisplayPercentage-1),1)
-	orb.galaxy1:SetAlpha(newDisplayPercentage)
-	orb.galaxy2:SetAlpha(newDisplayPercentage)
-	orb.galaxy3:SetAlpha(newDisplayPercentage)
+	orb.galaxy1:SetAlpha(newDisplayPercentage * RC32_GALAXY_ALPHA_MULTIPLIER)
+	orb.galaxy2:SetAlpha(newDisplayPercentage * RC32_GALAXY_ALPHA_MULTIPLIER)
+	orb.galaxy3:SetAlpha(newDisplayPercentage * RC32_GALAXY_ALPHA_MULTIPLIER)
 end
 
 local previousPetHealth = 0
@@ -1773,10 +1774,18 @@ local function safeColor(colorTable, defaultR, defaultG, defaultB, defaultA)
 	return colorTable.r or defaultR or 1, colorTable.g or defaultG or 1, colorTable.b or defaultB or 1, colorTable.a or defaultA or 1
 end
 
+local function setStatusBarColor(bar, r, g, b, a)
+	if not bar or not bar.SetStatusBarColor then
+		return
+	end
+	bar:SetStatusBarColor(r or 1, g or 1, b or 1, a or 1)
+end
+
 local function updateColorsFromMemory()
 	--health orb fill, galaxy and font colors - USE SAVED COLORS
 	local r,g,b,a = safeColor(RC32CharacterData.healthOrb.orbColor)
 	healthOrb.filling:SetVertexColor(r,g,b,a)
+	setStatusBarColor(healthOrb.fillingBar, r, g, b, a)
 	r,g,b,a = safeColor(RC32CharacterData.healthOrb.galaxy)
 	healthOrb.galaxy1.texture:SetVertexColor(r,g,b,a)
 	healthOrb.galaxy2.texture:SetVertexColor(r,g,b,a)
@@ -1790,6 +1799,7 @@ local function updateColorsFromMemory()
 	--mana orb fill, galaxy and font colors
 	r,g,b,a = safeColor(RC32CharacterData.manaOrb.orbColor)
 	manaOrb.filling:SetVertexColor(r,g,b,a)
+	setStatusBarColor(manaOrb.fillingBar, r, g, b, a)
 	r,g,b,a = safeColor(RC32CharacterData.manaOrb.galaxy)
 	manaOrb.galaxy1.texture:SetVertexColor(r,g,b,a)
 	manaOrb.galaxy2.texture:SetVertexColor(r,g,b,a)
@@ -1802,8 +1812,10 @@ local function updateColorsFromMemory()
 	
 	local pr, pg, pb, pa = healthOrb.filling:GetVertexColor()
 	petOrb.filling1:SetVertexColor(pr or 1, pg or 1, pb or 1, pa or 1)
+	setStatusBarColor(petOrb.filling1Bar, pr or 1, pg or 1, pb or 1, pa or 1)
 	pr, pg, pb, pa = manaOrb.filling:GetVertexColor()
 	petOrb.filling2:SetVertexColor(pr or 1, pg or 1, pb or 1, pa or 1)
+	setStatusBarColor(petOrb.filling2Bar, pr or 1, pg or 1, pb or 1, pa or 1)
 	petOrb.font1:SetTextColor(healthOrb.font1:GetTextColor())
 	petOrb.font2:SetTextColor(manaOrb.font1:GetTextColor())
 	petOrb.font3:SetTextColor(healthOrb.font2:GetTextColor())
@@ -1867,6 +1879,7 @@ end
 function RC32UpdateOrbColor(orb,orbColor,galaxyColor,font1Color,font2Color)
 	local r, g, b, a = safeColor(orbColor)
 	orb.filling:SetVertexColor(r, g, b, a)
+	setStatusBarColor(orb.fillingBar, r, g, b, a)
 	r, g, b, a = safeColor(galaxyColor)
 	orb.galaxy1.texture:SetVertexColor(r, g, b, a)
 	orb.galaxy2.texture:SetVertexColor(r, g, b, a)
@@ -2012,8 +2025,10 @@ function RC32ApplyChanges()
 	--set pet fill colors to that of the fill colors of the health/mana orbs
 	local pr, pg, pb, pa = healthOrb.filling:GetVertexColor()
 	petOrb.filling1:SetVertexColor(pr or 1, pg or 1, pb or 1, pa or 1)
+	setStatusBarColor(petOrb.filling1Bar, pr or 1, pg or 1, pb or 1, pa or 1)
 	pr, pg, pb, pa = manaOrb.filling:GetVertexColor()
 	petOrb.filling2:SetVertexColor(pr or 1, pg or 1, pb or 1, pa or 1)
+	setStatusBarColor(petOrb.filling2Bar, pr or 1, pg or 1, pb or 1, pa or 1)
 	petOrb.font1:SetTextColor(healthOrb.font1:GetTextColor())
 	petOrb.font2:SetTextColor(manaOrb.font1:GetTextColor())
 	petOrb.font3:SetTextColor(healthOrb.font2:GetTextColor())

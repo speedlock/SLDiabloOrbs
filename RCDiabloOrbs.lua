@@ -3,6 +3,8 @@
 -- Mistra's D3Orbs - rewrite of the previous oUF_D3Orbs_LightWeight
 -- The orbs originally appeared in the RothUI by "Zork" and permissive use of all assets and code was given by the original author. 
 -- The code in this addon has small chunks of the original still within, but the majority has been rewritten to be free of any external API by John Rubin, aka "Mistra"
+-- Code was abandoned a long time ago in roughly 2012, RawCard helped restore it for Classic.  
+-- I ported RawCard's Classic version for Retail. -Speedlock
 
 --Copyright (C) 2012 John Rubin
 

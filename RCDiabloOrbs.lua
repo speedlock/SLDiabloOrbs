@@ -420,6 +420,9 @@ local function monitorHealth(orb)
 			orb.fillingBar:SetMinMaxValues(0, rawMaxHealth or 1)
 			orb.fillingBar:SetValue(rawCurrentHealth or 0)
 		end
+		orb.galaxy1:SetAlpha(RC32_GALAXY_ALPHA_MULTIPLIER)
+		orb.galaxy2:SetAlpha(RC32_GALAXY_ALPHA_MULTIPLIER)
+		orb.galaxy3:SetAlpha(RC32_GALAXY_ALPHA_MULTIPLIER)
 		orb.font1:SetText(string.format("%s", rawCurrentHealth or ""))
 		orb.font2:SetText("")
 		return
@@ -491,6 +494,9 @@ local function monitorPower(orb)
 			orb.fillingBar:SetMinMaxValues(0, rawMaxPower or 1)
 			orb.fillingBar:SetValue(rawCurrentPower or 0)
 		end
+		orb.galaxy1:SetAlpha(RC32_GALAXY_ALPHA_MULTIPLIER)
+		orb.galaxy2:SetAlpha(RC32_GALAXY_ALPHA_MULTIPLIER)
+		orb.galaxy3:SetAlpha(RC32_GALAXY_ALPHA_MULTIPLIER)
 		orb.font1:SetText(string.format("%s", rawCurrentPower or ""))
 		orb.font2:SetText("")
 		return
@@ -569,6 +575,9 @@ local function PetHealthUpdate(orb)
 			orb.filling1Bar:SetMinMaxValues(0, rawMaxHealth or 1)
 			orb.filling1Bar:SetValue(rawCurrentHealth or 0)
 		end
+		orb.galaxy1:SetAlpha(RC32_GALAXY_ALPHA_MULTIPLIER)
+		orb.galaxy2:SetAlpha(RC32_GALAXY_ALPHA_MULTIPLIER)
+		orb.galaxy3:SetAlpha(RC32_GALAXY_ALPHA_MULTIPLIER)
 		orb.font1:SetText(string.format("%s", rawCurrentHealth or ""))
 		orb.font3:SetText("")
 		return
@@ -635,6 +644,9 @@ local function PetPowerUpdate(orb)
 			orb.filling2Bar:SetMinMaxValues(0, rawMaxPower or 1)
 			orb.filling2Bar:SetValue(rawCurrentPower or 0)
 		end
+		orb.galaxy1:SetAlpha(RC32_GALAXY_ALPHA_MULTIPLIER)
+		orb.galaxy2:SetAlpha(RC32_GALAXY_ALPHA_MULTIPLIER)
+		orb.galaxy3:SetAlpha(RC32_GALAXY_ALPHA_MULTIPLIER)
 		orb.font2:SetText(string.format("%s", rawCurrentPower or ""))
 		orb.font4:SetText("")
 		return
@@ -704,7 +716,7 @@ local function CreateGalaxy(orb, file, duration,size,x,y)
 	galTex:SetAllPoints(galaxy)
 	galTex:SetTexture(file)
 	galTex:SetBlendMode("ADD")
-	galTex:SetAlpha(1)
+	galTex:SetAlpha(RC32_GALAXY_ALPHA_MULTIPLIER)
 	galaxy.texture = galTex
 	
 	local animGroup = galaxy:CreateAnimationGroup()

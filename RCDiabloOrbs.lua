@@ -1,4 +1,4 @@
-﻿-- Author      : John Rubin - "Mistra50"
+-- Author      : John Rubin - "Mistra50"
 -- Create Date : 8/8/2012 9:03:35 PM
 -- Mistra's D3Orbs - rewrite of the previous oUF_D3Orbs_LightWeight
 -- The orbs originally appeared in the RothUI by "Zork" and permissive use of all assets and code was given by the original author. 
@@ -332,8 +332,6 @@ local playerFrameOriginalPoint = nil
 
 function handlePlayerFrame(show)
 	if show then
-		-- Restore PlayerFrame visibility
-		PlayerFrame:SetScript("OnEvent", PlayerFrame_OnEvent)
 		PlayerFrame:SetAlpha(1)
 		PlayerFrame:EnableMouse(true)
 		-- Restore original position if we saved it
@@ -342,7 +340,6 @@ function handlePlayerFrame(show)
 			PlayerFrame:SetPoint(unpack(playerFrameOriginalPoint))
 		end
 	else
-		-- Hide PlayerFrame without using protected Hide() function
 		-- Save original position first
 		if not playerFrameOriginalPoint then
 			local point, relativeTo, relativePoint, xOfs, yOfs = PlayerFrame:GetPoint(1)
@@ -350,7 +347,6 @@ function handlePlayerFrame(show)
 				playerFrameOriginalPoint = {point, relativeTo, relativePoint, xOfs, yOfs}
 			end
 		end
-		PlayerFrame:SetScript("OnEvent", nil)
 		PlayerFrame:SetAlpha(0)
 		PlayerFrame:EnableMouse(false)
 		-- Move off-screen to prevent any interaction

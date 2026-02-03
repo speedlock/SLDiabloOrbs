@@ -249,7 +249,6 @@ local function getClassColor()
 				return i 
 			end
 		end
-		print("Did not find the class.  "..UnitClass("player"))
 		return 0
 	end
 end
@@ -261,10 +260,10 @@ local Mr,Mg,Mb,Ma = orbClassColors[charClassNumber].mana.r, orbClassColors[charC
 
 local defaultsTable = {
 	--health orb vars
-	healthOrb = {scale = 1,textures = {fill = "MDO_orb_filling2.tga", rotation = "orb_rotation_bubbles"}, orbColor = {r = Hr, g = Hg, b = Hb, a= Ha}, galaxy = {r = Hr, g = Hg, b = Hb, a= Ha}, font1 = {r=1,g=1,b=1,a=1,show = true}, font2 = {r=1,g=1,b=1,a=1,show = true}, formatting = {truncated = true, commaSeparated = false}},
+	healthOrb = {scale = 1, enabled = true, textures = {fill = "MDO_orb_filling2.tga", rotation = "orb_rotation_bubbles"}, orbColor = {r = Hr, g = Hg, b = Hb, a= Ha}, galaxy = {r = Hr, g = Hg, b = Hb, a= Ha}, font1 = {r=1,g=1,b=1,a=1,show = true}, font2 = {r=1,g=1,b=1,a=1,show = true}, formatting = {truncated = true, commaSeparated = false}},
 
 	--mana orb vars
-	manaOrb = {scale = 1, textures = {fill = "MDO_orb_filling2.tga", rotation = "orb_rotation_bubbles"}, orbColor = {r = Mr, g = Mg, b = Mb, a = Ma},galaxy = {r = Mr, g = Mg, b = Mb, a = Ma}, font1 = {r=1,g=1,b=1,a=1,show = true}, font2 = {r=1,g=1,b=1,a=1,show = true}, formatting = {truncated = true, commaSeparated = false}},
+	manaOrb = {scale = 1, enabled = true, textures = {fill = "MDO_orb_filling2.tga", rotation = "orb_rotation_bubbles"}, orbColor = {r = Mr, g = Mg, b = Mb, a = Ma},galaxy = {r = Mr, g = Mg, b = Mb, a = Ma}, font1 = {r=1,g=1,b=1,a=1,show = true}, font2 = {r=1,g=1,b=1,a=1,show = true}, formatting = {truncated = true, commaSeparated = false}},
 	
 	--pet orb vars
 	petOrb = {scale = 1, enabled = true, showValue = false, showPercentage = true, healthOrb = {r=Hr,g=Hg,b=Hb,a=Ha}, manaOrb={r=Mr,g=Mg,b=Mb,a=Ma}},
@@ -333,10 +332,26 @@ SL32FillTextureChoices = {
 	[6] = images.. "MDO_orb_filling7.tga",
 }
 
+SL32FillTextureDisplayNames = {
+	[0] = "Moon",
+	[1] = "Mist",
+	[2] = "Liquid Metal",
+	[3] = "Dragon Skin",
+	[4] = "Iris",
+	[5] = "Fractals",
+	[6] = "Warped",
+}
+
 SL32RotationTextureChoices = {
 	[0] = images.. "orb_rotation_galaxy",
 	[1] = images.. "orb_rotation_bubbles",
 	[2] = images.. "orb_rotation_iris"
+}
+
+SL32RotationTextureDisplayNames = {
+	[0] = "Galaxy",
+	[1] = "Bubbles",
+	[2] = "Eye Glow",
 }
 
 -- Track selected texture indices from dropdowns
@@ -416,12 +431,44 @@ local function makeFrameMovable(frame,button)
 	frame:SetScript("OnDragStop", function(self) self:StopMovingOrSizing() end)
 end
 
-local function valueFormat(val,petOverride)
-	if not SL32CanUseValue(val) then
+local function commaFormatValue(val)
+	if type(val) ~= "number" then
+		val = tonumber(val)
+	end
+	if type(val) ~= "number" then
 		return string.format("%s", val or "")
 	end
+	local negative = val < 0
+	local integer = tostring(math.floor(math.abs(val)))
+	local formatted = integer:reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", "")
+	if negative then
+		formatted = "-" .. formatted
+	end
+	return formatted
+end
+
+local function resolveFormattingOptions(formatting)
+	if formatting and (formatting.truncated ~= nil or formatting.commaSeparated ~= nil) then
+		return formatting
+	end
+	if SL32CharacterData and SL32CharacterData.values then
+		return {
+			truncated = (SL32CharacterData.values.formatted == true),
+			commaSeparated = (SL32CharacterData.values.commaSeparated == true),
+		}
+	end
+	return {truncated = false, commaSeparated = false}
+end
+
+local function valueFormat(val, petOverride, formatting)
+	if not SL32CanUseValue(val) and type(val) ~= "number" then
+		return string.format("%s", val or "")
+	end
+	formatting = resolveFormattingOptions(formatting)
 	local newVal = val
-	if SL32CharacterData.values.formatted == true then
+	if formatting.commaSeparated then
+		newVal = commaFormatValue(SL32SafeNumber(val, 0))
+	elseif formatting.truncated then
 		if val > 1000000 then
 			newVal = (floor((val/1000000)*10)/10) .."m"
 		elseif val > 99999 then
@@ -434,6 +481,36 @@ local function valueFormat(val,petOverride)
 		end
 	end
 	return newVal
+end
+
+local function formatDisplayValue(val, formatting, petOverride)
+	if SL32CanUseValue(val) then
+		return valueFormat(val, petOverride, formatting)
+	end
+	return string.format("%s", val or "")
+end
+
+local function applyOrbValueVisibility(orb, orbData)
+	if not orb or not orbData then
+		return
+	end
+	-- Percentage disabled
+	if orb.font1 then
+		orb.font1:SetText("")
+		orb.font1:Hide()
+	end
+	if orbData.font2 and orbData.font2.show == false then
+		if orb.font2 then
+			orb.font2:SetText("")
+			orb.font2:Hide()
+		end
+		return
+	end
+	if orb.font2 then
+		orb.font2:Show()
+		orb.font2:SetFont(SL32CharacterData.font,25,"THINOUTLINE")
+		orb.font2:SetPoint("CENTER",0,0)
+	end
 end
 
 local previousHealthValue = 0
@@ -457,8 +534,11 @@ local function monitorHealth(orb)
 		orb.galaxy1:SetAlpha(SL32_GALAXY_ALPHA_MULTIPLIER)
 		orb.galaxy2:SetAlpha(SL32_GALAXY_ALPHA_MULTIPLIER)
 		orb.galaxy3:SetAlpha(SL32_GALAXY_ALPHA_MULTIPLIER)
-		orb.font1:SetText(string.format("%s", rawCurrentHealth or ""))
-		orb.font2:SetText("")
+		local fallbackText = formatDisplayValue(rawCurrentHealth, SL32CharacterData.healthOrb and SL32CharacterData.healthOrb.formatting, false)
+		applyOrbValueVisibility(orb, SL32CharacterData.healthOrb)
+		if orb.font2 and (not (SL32CharacterData.healthOrb and SL32CharacterData.healthOrb.font2 and SL32CharacterData.healthOrb.font2.show == false)) then
+			orb.font2:SetText(fallbackText)
+		end
 		return
 	end
 	local maxHealth = SL32SafeNumber(rawMaxHealth, 1)
@@ -497,12 +577,11 @@ local function monitorHealth(orb)
 		newDisplayPercentage = 1
 		targetTexHeight = orb.filling:GetWidth()
 	end
-	local string1 = math.floor(newDisplayPercentage*100)
-	if tonumber(string1) == nil then string1 = 0 end
-	orb.font1:SetText(string1)
-
-	local string = valueFormat(currentHealth)
-	orb.font2:SetText(string)
+	local string = formatDisplayValue(currentHealth, SL32CharacterData.healthOrb and SL32CharacterData.healthOrb.formatting, false)
+	applyOrbValueVisibility(orb, SL32CharacterData.healthOrb)
+	if orb.font2 and (not (SL32CharacterData.healthOrb and SL32CharacterData.healthOrb.font2 and SL32CharacterData.healthOrb.font2.show == false)) then
+		orb.font2:SetText(string)
+	end
 
 	if isDead then
 		orb.font2:SetText("DEAD :'(")
@@ -515,6 +594,8 @@ local function monitorHealth(orb)
 	orb.galaxy1:SetAlpha(newDisplayPercentage * SL32_GALAXY_ALPHA_MULTIPLIER)
 	orb.galaxy2:SetAlpha(newDisplayPercentage * SL32_GALAXY_ALPHA_MULTIPLIER)
 	orb.galaxy3:SetAlpha(newDisplayPercentage * SL32_GALAXY_ALPHA_MULTIPLIER)
+
+	applyOrbValueVisibility(orb, SL32CharacterData.healthOrb)
 end
 
 local previousPowerValue = 0
@@ -531,8 +612,11 @@ local function monitorPower(orb)
 		orb.galaxy1:SetAlpha(SL32_GALAXY_ALPHA_MULTIPLIER)
 		orb.galaxy2:SetAlpha(SL32_GALAXY_ALPHA_MULTIPLIER)
 		orb.galaxy3:SetAlpha(SL32_GALAXY_ALPHA_MULTIPLIER)
-		orb.font1:SetText(string.format("%s", rawCurrentPower or ""))
-		orb.font2:SetText("")
+		local fallbackText = formatDisplayValue(rawCurrentPower, SL32CharacterData.manaOrb and SL32CharacterData.manaOrb.formatting, false)
+		applyOrbValueVisibility(orb, SL32CharacterData.manaOrb)
+		if orb.font2 and (not (SL32CharacterData.manaOrb and SL32CharacterData.manaOrb.font2 and SL32CharacterData.manaOrb.font2.show == false)) then
+			orb.font2:SetText(fallbackText)
+		end
 		return
 	end
 	local maxPower = SL32SafeNumber(rawMaxPower, 1)
@@ -572,12 +656,11 @@ local function monitorPower(orb)
 		newDisplayPercentage = 1
 		targetTexHeight = orb.filling:GetWidth()
 	end
-	local string1 = math.floor(newDisplayPercentage*100)
-	if tonumber(string1) == nil then string1 = 0 end
-	orb.font1:SetText(string1)
-
-	local string = valueFormat(currentPower)
-	orb.font2:SetText(string)
+	local string = formatDisplayValue(currentPower, SL32CharacterData.manaOrb and SL32CharacterData.manaOrb.formatting, false)
+	applyOrbValueVisibility(orb, SL32CharacterData.manaOrb)
+	if orb.font2 and (not (SL32CharacterData.manaOrb and SL32CharacterData.manaOrb.font2 and SL32CharacterData.manaOrb.font2.show == false)) then
+		orb.font2:SetText(string)
+	end
 
 	if isDead then
 		orb.font2:SetText("DEAD :'(")
@@ -590,6 +673,8 @@ local function monitorPower(orb)
 	orb.galaxy1:SetAlpha(newDisplayPercentage * SL32_GALAXY_ALPHA_MULTIPLIER)
 	orb.galaxy2:SetAlpha(newDisplayPercentage * SL32_GALAXY_ALPHA_MULTIPLIER)
 	orb.galaxy3:SetAlpha(newDisplayPercentage * SL32_GALAXY_ALPHA_MULTIPLIER)
+
+	applyOrbValueVisibility(orb, SL32CharacterData.manaOrb)
 end
 
 local previousPetHealth = 0
@@ -655,7 +740,7 @@ local function PetHealthUpdate(orb)
 	if tonumber(string1) == nil then string1 = 0 end
 	orb.font1:SetText(string1)
 	
-	local string = valueFormat(currentHealth,true)
+	local string = valueFormat(currentHealth, true, SL32CharacterData.healthOrb and SL32CharacterData.healthOrb.formatting)
 	orb.font3:SetText(string)
 
 	if orb.filling1Bar then orb.filling1Bar:Hide() end
@@ -725,7 +810,7 @@ local function PetPowerUpdate(orb)
 	if tonumber(string1) == nil then string1 = 0 end
 	orb.font2:SetText(string1)
 	
-	local string = valueFormat(currentPower,true)
+	local string = valueFormat(currentPower, true, SL32CharacterData.manaOrb and SL32CharacterData.manaOrb.formatting)
 	orb.font4:SetText(string)	
 
 	if orb.filling2Bar then orb.filling2Bar:Hide() end
@@ -1654,45 +1739,37 @@ function checkPetFontPlacement()
 end
 
 function setOrbFontPlacement(orb,orbData)
-	orb.font1:Show()
-	orb.font2:Show()
-	if orbData.font1.show and orbData.font2.show then
-		orb.font1:SetFont(SL32CharacterData.font,28,"THINOUTLINE")
-		orb.font2:SetFont(SL32CharacterData.font,16,"THINOUTLINE")
-		orb.font1:SetPoint("CENTER",0,15)
-		orb.font2:SetPoint("CENTER",0,-5)
-	elseif orbData.font1.show and not orbData.font2.show then
-		orb.font1:SetFont(SL32CharacterData.font,28,"THINOUTLINE")
-		orb.font1:SetPoint("CENTER",0,0)
-		orb.font2:Hide()
-	elseif orbData.font2.show and not orbData.font1.show then
+	-- Only show raw value (font2). Percentage (font1) is disabled.
+	orbData.font1.show = false
+	orb.font1:SetText("")
+	orb.font1:Hide()
+	if orbData.font2.show then
+		orb.font2:Show()
 		orb.font2:SetFont(SL32CharacterData.font,25,"THINOUTLINE")
 		orb.font2:SetPoint("CENTER",0,0)
-		orb.font1:Hide()
 	else
-		orb.font1:Hide()
 		orb.font2:Hide()
 	end
 end
 
+local function forcePercentageOff()
+	if SL32CharacterData and SL32CharacterData.healthOrb and SL32CharacterData.healthOrb.font1 then
+		SL32CharacterData.healthOrb.font1.show = false
+	end
+	if SL32CharacterData and SL32CharacterData.manaOrb and SL32CharacterData.manaOrb.font1 then
+		SL32CharacterData.manaOrb.font1.show = false
+	end
+end
+
 function checkXMLOrbFontPlacement()
-	xmlOrbDisplayFrame2.orb.font1:Show()
-	xmlOrbDisplayFrame2.orb.font2:Show()
-	if SL32OrbPercentageCheckBox:GetChecked() and SL32OrbValueCheckBox:GetChecked() then
-		xmlOrbDisplayFrame2.orb.font1:SetFont(SL32CharacterData.font,28,"THINOUTLINE")
-		xmlOrbDisplayFrame2.orb.font2:SetFont(SL32CharacterData.font,16,"THINOUTLINE")
-		xmlOrbDisplayFrame2.orb.font1:SetPoint("CENTER",0,15)
-		xmlOrbDisplayFrame2.orb.font2:SetPoint("CENTER",0,-5)
-	elseif SL32OrbPercentageCheckBox:GetChecked() and not SL32OrbValueCheckBox:GetChecked() then
-		xmlOrbDisplayFrame2.orb.font1:SetFont(SL32CharacterData.font,32,"THINOUTLINE")
-		xmlOrbDisplayFrame2.orb.font1:SetPoint("CENTER",0,0)
-		xmlOrbDisplayFrame2.orb.font2:Hide()
-	elseif SL32OrbValueCheckBox:GetChecked() and not SL32OrbPercentageCheckBox:GetChecked() then
+	-- Preview only shows raw value (font2). Percentage (font1) disabled.
+	xmlOrbDisplayFrame2.orb.font1:SetText("")
+	xmlOrbDisplayFrame2.orb.font1:Hide()
+	if SL32OrbValueCheckBox:GetChecked() then
+		xmlOrbDisplayFrame2.orb.font2:Show()
 		xmlOrbDisplayFrame2.orb.font2:SetFont(SL32CharacterData.font,32,"THINOUTLINE")
 		xmlOrbDisplayFrame2.orb.font2:SetPoint("CENTER",0,0)
-		xmlOrbDisplayFrame2.orb.font1:Hide()
 	else
-		xmlOrbDisplayFrame2.orb.font1:Hide()
 		xmlOrbDisplayFrame2.orb.font2:Hide()
 	end
 end
@@ -1707,6 +1784,7 @@ local function checkDefaultsFromMemory()
 	if not SL32CharacterData.healthOrb.textures then SL32CharacterData.healthOrb.textures = defaultTextures.healthOrb end
 	if not SL32CharacterData.healthOrb.textures.fill then SL32CharacterData.healthOrb.textures.fill = defaultTextures.healthOrb.fill end
 	if not SL32CharacterData.healthOrb.textures.rotation then SL32CharacterData.healthOrb.textures.rotation = defaultTextures.healthOrb.rotation end
+	if SL32CharacterData.healthOrb.enabled == nil then SL32CharacterData.healthOrb.enabled = true end
 	if SL32CharacterData.healthOrb.font1.show == nil then SL32CharacterData.healthOrb.font1.show = defaultsTable.healthOrb.font1.show end
 	if SL32CharacterData.healthOrb.font2.show == nil then SL32CharacterData.healthOrb.font2.show = defaultsTable.healthOrb.font2.show end
 	if not SL32CharacterData.healthOrb.formatting then SL32CharacterData.healthOrb.formatting = defaultsTable.healthOrb.formatting end
@@ -1714,8 +1792,10 @@ local function checkDefaultsFromMemory()
 	if not SL32CharacterData.manaOrb.textures then SL32CharacterData.manaOrb.textures = defaultTextures.manaOrb end
 	if not SL32CharacterData.manaOrb.textures.fill then SL32CharacterData.manaOrb.textures.fill = defaultTextures.manaOrb.fill end
 	if not SL32CharacterData.manaOrb.textures.rotation then SL32CharacterData.manaOrb.textures.rotation = defaultTextures.manaOrb.rotation end
+	if SL32CharacterData.manaOrb.enabled == nil then SL32CharacterData.manaOrb.enabled = true end
 	if SL32CharacterData.manaOrb.font1.show == nil then SL32CharacterData.manaOrb.font1.show = defaultsTable.manaOrb.font1.show end
 	if SL32CharacterData.manaOrb.font2.show == nil then SL32CharacterData.manaOrb.font2.show = defaultsTable.manaOrb.font2.show end
+	forcePercentageOff()
 	if not SL32CharacterData.manaOrb.formatting then SL32CharacterData.manaOrb.formatting = defaultsTable.manaOrb.formatting end
 	if not SL32CharacterData.druidColors then SL32CharacterData.druidColors = defaultsTable.druidColors end
 	if not SL32CharacterData.combat then SL32CharacterData.combat = defaultsTable.combat end
@@ -1940,7 +2020,17 @@ end
 
 local function TryNewColors(restore)
 	local r, g, b = ColorPickerFrame:GetColorRGB()
-	local a = OpacitySliderFrame:GetValue()
+	local a
+	if OpacitySliderFrame and OpacitySliderFrame.GetValue then
+		a = OpacitySliderFrame:GetValue()
+	elseif ColorPickerFrame.GetColorAlpha then
+		a = ColorPickerFrame:GetColorAlpha()
+	else
+		a = ColorPickerFrame.opacity
+	end
+	if a == nil then
+		a = 1
+	end
 
 	if restore then
 		r,g,b,a = unpack(restore)
@@ -1956,6 +2046,12 @@ local function TryNewColors(restore)
 		xmlOrbDisplayFrame2.orb.font1:SetTextColor(r,g,b,a)
 	elseif ColorPickerFrame.elementToChange == "Font2" then
 		xmlOrbDisplayFrame2.orb.font2:SetTextColor(r,g,b,a) 
+	end
+end
+
+function SL32HideColorPicker()
+	if ColorPickerFrame and ColorPickerFrame.Hide then
+		ColorPickerFrame:Hide()
 	end
 end
 
@@ -2005,20 +2101,38 @@ local function UpdateOrbTextures()
 	local manaFill = (SL32CharacterData.manaOrb.textures and SL32CharacterData.manaOrb.textures.fill) or defaultTextures.manaOrb.fill
 	local manaRotation = (SL32CharacterData.manaOrb.textures and SL32CharacterData.manaOrb.textures.rotation) or defaultTextures.manaOrb.rotation
 	
-	healthOrb.filling:SetTexture(images..healthFill)
-	healthOrb.galaxy1.texture:SetTexture(images..healthRotation.."1.tga")
-	healthOrb.galaxy2.texture:SetTexture(images..healthRotation.."2.tga")
-	healthOrb.galaxy3.texture:SetTexture(images..healthRotation.."3.tga")
+	local healthFillPath = (type(healthFill) == "string" and healthFill:find("\\"))
+		and healthFill
+		or (images .. healthFill)
+	local healthRotationBase = (type(healthRotation) == "string" and healthRotation:find("\\"))
+		and healthRotation:gsub("(%d+)%.tga$", "")
+		or (images .. healthRotation)
+	healthOrb.filling:SetTexture(healthFillPath)
+	if healthOrb.fillingBar and healthOrb.fillingBar.SetStatusBarTexture then
+		healthOrb.fillingBar:SetStatusBarTexture(healthFillPath)
+	end
+	healthOrb.galaxy1.texture:SetTexture(healthRotationBase.."1.tga")
+	healthOrb.galaxy2.texture:SetTexture(healthRotationBase.."2.tga")
+	healthOrb.galaxy3.texture:SetTexture(healthRotationBase.."3.tga")
 	
-	manaOrb.filling:SetTexture(images..manaFill)
-	manaOrb.galaxy1.texture:SetTexture(images..manaRotation.."1.tga")
-	manaOrb.galaxy2.texture:SetTexture(images..manaRotation.."2.tga")
-	manaOrb.galaxy3.texture:SetTexture(images..manaRotation.."3.tga")
+	local manaFillPath = (type(manaFill) == "string" and manaFill:find("\\"))
+		and manaFill
+		or (images .. manaFill)
+	local manaRotationBase = (type(manaRotation) == "string" and manaRotation:find("\\"))
+		and manaRotation:gsub("(%d+)%.tga$", "")
+		or (images .. manaRotation)
+	manaOrb.filling:SetTexture(manaFillPath)
+	if manaOrb.fillingBar and manaOrb.fillingBar.SetStatusBarTexture then
+		manaOrb.fillingBar:SetStatusBarTexture(manaFillPath)
+	end
+	manaOrb.galaxy1.texture:SetTexture(manaRotationBase.."1.tga")
+	manaOrb.galaxy2.texture:SetTexture(manaRotationBase.."2.tga")
+	manaOrb.galaxy3.texture:SetTexture(manaRotationBase.."3.tga")
 end
 
 function shouldEnabledCheckboxBeChecked()
 	if CommitButton and SL32OrbEnabledCheckbox then
-		SL32OrbEnabledCheckbox:SetChecked(CommitButton.orbData.enabled)
+		SL32OrbEnabledCheckbox:SetChecked(CommitButton.orbData.enabled ~= false)
 	end
 end
 
@@ -2047,20 +2161,62 @@ function SL32ApplyChanges()
 	-- Update the actual orb being edited with its saved colors
 	SL32UpdateOrbColor(CommitButton.orb, activeElement.orbColor, activeElement.galaxy, activeElement.font1, activeElement.font2)
 	
-	-- Use stored texture indices from dropdown selections
-	if SL32SelectedFillIndex ~= nil then
-		CommitButton.textureElement.fill = SL32FillTextureNames[SL32SelectedFillIndex]
+	-- Persist text formatting selection from dropdown
+	if CommitButton.orbData and CommitButton.orbData.formatting and TextFormattingDropdown then
+		local selectedId = UIDropDownMenu_GetSelectedID(TextFormattingDropdown)
+		if selectedId == 1 then
+			CommitButton.orbData.formatting.truncated = true
+			CommitButton.orbData.formatting.commaSeparated = false
+		elseif selectedId == 2 then
+			CommitButton.orbData.formatting.truncated = false
+			CommitButton.orbData.formatting.commaSeparated = true
+		elseif selectedId == 3 then
+			CommitButton.orbData.formatting.truncated = false
+			CommitButton.orbData.formatting.commaSeparated = false
+		end
 	end
-	if SL32SelectedRotationIndex ~= nil then
-		CommitButton.textureElement.rotation = SL32RotationTextureNames[SL32SelectedRotationIndex]
+
+	-- Persist enabled state if available
+	if CommitButton.orbData then
+		CommitButton.orbData.enabled = (SL32OrbEnabledCheckbox and SL32OrbEnabledCheckbox:GetChecked()) and true or false
+	end
+	forcePercentageOff()
+
+	-- Use stored texture indices from dropdown selections, or fall back to preview textures
+	if not CommitButton.textureElement and CommitButton.orbData and CommitButton.orbData.textures then
+		CommitButton.textureElement = CommitButton.orbData.textures
+	end
+	if CommitButton.textureElement then
+		local selectedFill = (SL32SelectedFillIndex ~= nil) and SL32FillTextureNames[SL32SelectedFillIndex] or nil
+		if selectedFill then
+			CommitButton.textureElement.fill = selectedFill
+		else
+			local previewFill = (xmlOrbDisplayFrame2 and xmlOrbDisplayFrame2.orb and xmlOrbDisplayFrame2.orb.filling and xmlOrbDisplayFrame2.orb.filling:GetTexture()) or nil
+			if type(previewFill) == "string" then
+				local name = previewFill:match("([^\\/:]+%.tga)") or previewFill:match("([^\\/:]+)$")
+				if name then
+					CommitButton.textureElement.fill = name
+				end
+			end
+		end
+
+		local selectedRotation = (SL32SelectedRotationIndex ~= nil) and SL32RotationTextureNames[SL32SelectedRotationIndex] or nil
+		if selectedRotation then
+			CommitButton.textureElement.rotation = selectedRotation
+		else
+			local previewRotation = (xmlOrbDisplayFrame2 and xmlOrbDisplayFrame2.orb and xmlOrbDisplayFrame2.orb.galaxy1 and xmlOrbDisplayFrame2.orb.galaxy1.texture and xmlOrbDisplayFrame2.orb.galaxy1.texture:GetTexture()) or nil
+			if type(previewRotation) == "string" then
+				local base = previewRotation:match("([^\\/:]+)%.tga") or previewRotation:match("([^\\/:]+)$")
+				if base then
+					base = base:gsub("%d+$", "")
+					if base ~= "" then
+						CommitButton.textureElement.rotation = base
+					end
+				end
+			end
+		end
 	end
 	UpdateOrbTextures()
-
-	if SL32OrbPercentageCheckBox:GetChecked() then
-		CommitButton.orbData.font1.show = true
-	else
-		CommitButton.orbData.font1.show = false
-	end
 
 	if SL32OrbValueCheckBox:GetChecked() then
 		CommitButton.orbData.font2.show = true
@@ -2069,6 +2225,7 @@ function SL32ApplyChanges()
 	end
 
 	setOrbFontPlacement(CommitButton.orb,CommitButton.orbData)
+	applyOrbValueVisibility(CommitButton.orb, CommitButton.orbData)
 	
 	--set pet fill colors to that of the fill colors of the health/mana orbs
 	local pr, pg, pb, pa = healthOrb.filling:GetVertexColor()
@@ -2081,6 +2238,27 @@ function SL32ApplyChanges()
 	petOrb.font2:SetTextColor(manaOrb.font1:GetTextColor())
 	petOrb.font3:SetTextColor(healthOrb.font2:GetTextColor())
 	petOrb.font4:SetTextColor(manaOrb.font2:GetTextColor())
+
+	if CommitButton.orb == healthOrb and CommitButton.orbData then
+		if CommitButton.orbData.enabled then
+			healthOrb:Show()
+		else
+			healthOrb:Hide()
+		end
+	elseif CommitButton.orb == manaOrb and CommitButton.orbData then
+		if CommitButton.orbData.enabled then
+			manaOrb:Show()
+		else
+			manaOrb:Hide()
+		end
+	end
+
+	if SL32_UpdatePlayerVitals then
+		SL32_UpdatePlayerVitals()
+	end
+	if SL32_UpdatePetVitals then
+		SL32_UpdatePetVitals()
+	end
 end
 
 function SL32ColorPicker(xmlElement)
@@ -2096,8 +2274,17 @@ function SL32ColorPicker(xmlElement)
 	end
 	
 	ColorPickerFrame.elementToChange = xmlElement
-	ColorPickerFrame.func, ColorPickerFrame.opacityFunc, ColorPickerFrame.cancelFunc = TryNewColors,TryNewColors,TryNewColors
-	ColorPickerFrame:SetColorRGB(r,g,b,a)
+	ColorPickerFrame.func = TryNewColors
+	ColorPickerFrame.swatchFunc = TryNewColors
+	ColorPickerFrame.opacityFunc = TryNewColors
+	ColorPickerFrame.cancelFunc = TryNewColors
+	if ColorPickerFrame.SetColorRGB then
+		ColorPickerFrame:SetColorRGB(r, g, b)
+	elseif ColorPickerFrame.Content and ColorPickerFrame.Content.ColorSwatch and ColorPickerFrame.Content.ColorSwatch.SetColorRGB then
+		ColorPickerFrame.Content.ColorSwatch:SetColorRGB(r, g, b)
+	elseif ColorPickerFrame.ColorSwatch and ColorPickerFrame.ColorSwatch.SetColorRGB then
+		ColorPickerFrame.ColorSwatch:SetColorRGB(r, g, b)
+	end
 	ColorPickerFrame.hasOpacity, ColorPickerFrame.opacity = (a ~= nil), a
 	ColorPickerFrame.previousValues = {r,g,b,a}
 	makeFrameMovable(ColorPickerFrame,"RightButton")
@@ -2134,9 +2321,47 @@ function UpdateXMLTextures(orb)
 	-- Reset selected texture indices when opening config
 	SL32SelectedFillIndex = nil
 	SL32SelectedRotationIndex = nil
-	
-	UIDropDownMenu_SetText(FillTexturesDropDown,"Choose one...")
-	UIDropDownMenu_SetText(RotationTexturesDropDown,"Choose one...")
+
+	local fillName = CommitButton and CommitButton.orbData and CommitButton.orbData.textures and CommitButton.orbData.textures.fill or nil
+	local rotationName = CommitButton and CommitButton.orbData and CommitButton.orbData.textures and CommitButton.orbData.textures.rotation or nil
+	if type(fillName) == "string" then
+		fillName = fillName:match("([^\\/:]+%.tga)") or fillName:match("([^\\/:]+)$")
+	end
+	if type(rotationName) == "string" then
+		rotationName = rotationName:match("([^\\/:]+)") or rotationName
+	end
+
+	local selectedFill = nil
+	for index, name in pairs(SL32FillTextureNames) do
+		if name == fillName then
+			selectedFill = index
+			break
+		end
+	end
+	local selectedRotation = nil
+	for index, name in pairs(SL32RotationTextureNames) do
+		if name == rotationName then
+			selectedRotation = index
+			break
+		end
+	end
+
+	if selectedFill ~= nil then
+		UIDropDownMenu_SetSelectedID(FillTexturesDropDown, selectedFill + 1)
+		if SL32FillTextureDisplayNames and SL32FillTextureDisplayNames[selectedFill] then
+			UIDropDownMenu_SetText(FillTexturesDropDown, SL32FillTextureDisplayNames[selectedFill])
+		end
+	else
+		UIDropDownMenu_SetText(FillTexturesDropDown,"Choose one...")
+	end
+	if selectedRotation ~= nil then
+		UIDropDownMenu_SetSelectedID(RotationTexturesDropDown, selectedRotation + 1)
+		if SL32RotationTextureDisplayNames and SL32RotationTextureDisplayNames[selectedRotation] then
+			UIDropDownMenu_SetText(RotationTexturesDropDown, SL32RotationTextureDisplayNames[selectedRotation])
+		end
+	else
+		UIDropDownMenu_SetText(RotationTexturesDropDown,"Choose one...")
+	end
 end
 
 function UpdateXMLColors(orbColor,galaxyColor,font1,font2)

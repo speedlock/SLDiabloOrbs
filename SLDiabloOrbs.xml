@@ -1072,7 +1072,7 @@
 			</Layer>
 		</Layers>
 		<Frames>
-			<CheckButton name="SL32OrbPercentageCheckBox" inherits="UICheckButtonTemplate" checked="true">
+			<CheckButton name="SL32OrbPercentageCheckBox" inherits="UICheckButtonTemplate" checked="true" hidden="true">
 				<Anchors>
 					<Anchor point="CENTER">
 						<Offset x="75" y="-145" />
@@ -1189,7 +1189,7 @@
 						</Anchors>
 						<Scripts>
 							<OnClick>
-								ColorPickerFrame:Hide()
+								SL32HideColorPicker()
 								SL32ColorPicker("Filling")
 							</OnClick>
 						</Scripts>
@@ -1205,7 +1205,7 @@
 						</Anchors>
 						<Scripts>
 							<OnClick>
-								ColorPickerFrame:Hide()
+								SL32HideColorPicker()
 								SL32ColorPicker("Swirl")
 							</OnClick>
 						</Scripts>
@@ -1221,7 +1221,7 @@
 						</Anchors>
 						<Scripts>
 							<OnClick>
-								ColorPickerFrame:Hide()
+								SL32HideColorPicker()
 								SL32ColorPicker("Font1")
 							</OnClick>
 						</Scripts>
@@ -1237,7 +1237,7 @@
 						</Anchors>
 						<Scripts>
 							<OnClick>
-								ColorPickerFrame:Hide()
+								SL32HideColorPicker()
 								SL32ColorPicker("Font2")
 							</OnClick>
 						</Scripts>
@@ -1253,7 +1253,7 @@
 						</Anchors>
 						<Scripts>
 							<OnClick>
-								ColorPickerFrame:Hide()
+								SL32HideColorPicker()
 								SL32ResetToClassColors()
 							</OnClick>
 						</Scripts>
@@ -1326,7 +1326,7 @@
 			</OnShow>
 		</Scripts>
 	</Button>
-	<Button name="TextFormattingDropdown" inherits="UIDropDownMenuTemplate" hidden="false" parent="SL32ConfigFrame">
+	<Button name="TextFormattingDropdown" inherits="UIDropDownMenuTemplate" hidden="true" parent="SL32ConfigFrame">
 		<Size x="200" y="45" />
 		<Anchors>
 			<Anchor point="TOPRIGHT">
@@ -1385,6 +1385,18 @@
 			</OnShow>
 		</Scripts>
 	</Button>
+	<Frame name="TextFormattingNoteFrame" parent="SL32ConfigFrame">
+		<Anchors>
+			<Anchor point="TOPRIGHT">
+				<Offset x="20" y="-22" />
+			</Anchor>
+		</Anchors>
+		<Layers>
+			<Layer>
+				<FontString name="TextFormattingNote" inherits="GameFontNormalSmall" text="Value formatting discontinued (protected values)." />
+			</Layer>
+		</Layers>
+	</Frame>
 	<Button name="FillTexturesDropDown" inherits="UIDropDownMenuTemplate" parent="SL32ConfigFrame">
 		<Size x="200" y="45" />
 		<Anchors>
@@ -1398,27 +1410,22 @@
 					UIDropDownMenu_SetSelectedID(FillTexturesDropDown,self:GetID())
 					SL32SelectedFillIndex = self:GetID() - 1
 					TryNewTextures(SL32FillTextureChoices[self:GetID() - 1],nil)
+					if SL32FillTextureDisplayNames and SL32FillTextureDisplayNames[SL32SelectedFillIndex] then
+						UIDropDownMenu_SetText(FillTexturesDropDown, SL32FillTextureDisplayNames[SL32SelectedFillIndex])
+					end
 				end
 
-				local textureNameTable = {
-					[0] = "Moon",
-					[1] = "Mist",
-					[2] = "Liquid Metal",
-					[3] = "Dragon Skin",
-					[4] = "Iris",
-					[5] = "Fractals",
-					[6] = "Warped"
-				}
-
 				local function fillMenu(self, level)
-					local num = table.getn(textureNameTable)
-					for i=0,num,1 do
-						local val = textureNameTable[i]
-						stuff = {}
-						stuff.text = val
-						stuff.value = val
-						stuff.func = FillTexturesDropDown.OnClick
-						UIDropDownMenu_AddButton(stuff, level)
+					local num = SL32FillTextureDisplayNames and table.getn(SL32FillTextureDisplayNames) or 0
+					for i = 0, num, 1 do
+						local val = SL32FillTextureDisplayNames and SL32FillTextureDisplayNames[i]
+						if val then
+							local info = UIDropDownMenu_CreateInfo()
+							info.text = val
+							info.value = val
+							info.func = FillTexturesDropDown.OnClick
+							UIDropDownMenu_AddButton(info, level)
+						end
 					end
 				end
 				UIDropDownMenu_Initialize(FillTexturesDropDown, fillMenu)
@@ -1443,23 +1450,22 @@
 					UIDropDownMenu_SetSelectedID(RotationTexturesDropDown,self:GetID())
 					SL32SelectedRotationIndex = self:GetID() - 1
 					TryNewTextures(nil,SL32RotationTextureChoices[self:GetID() - 1])
+					if SL32RotationTextureDisplayNames and SL32RotationTextureDisplayNames[SL32SelectedRotationIndex] then
+						UIDropDownMenu_SetText(RotationTexturesDropDown, SL32RotationTextureDisplayNames[SL32SelectedRotationIndex])
+					end
 				end
 
-				local textureNameTable2 = {
-				[0] = "Galaxy",
-				[1] = "Bubbles",
-				[2] = "Eye Glow",
-				}
-
 				local function rotationMenu(self, level)
-					local num = table.getn(textureNameTable2)
-					for i=0,num,1 do
-						local val = textureNameTable2[i]
-						stuff = {}
-						stuff.text = val
-						stuff.value = val
-						stuff.func = RotationTexturesDropDown.OnClick
-						UIDropDownMenu_AddButton(stuff, level)
+					local num = SL32RotationTextureDisplayNames and table.getn(SL32RotationTextureDisplayNames) or 0
+					for i = 0, num, 1 do
+						local val = SL32RotationTextureDisplayNames and SL32RotationTextureDisplayNames[i]
+						if val then
+							local info = UIDropDownMenu_CreateInfo()
+							info.text = val
+							info.value = val
+							info.func = RotationTexturesDropDown.OnClick
+							UIDropDownMenu_AddButton(info, level)
+						end
 					end
 				end
 				UIDropDownMenu_Initialize(RotationTexturesDropDown, rotationMenu)

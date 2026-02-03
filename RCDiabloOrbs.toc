@@ -1,9 +1,0 @@
-## Title: RC Diablo Orbs
-## Version: 1.0-MoP
-## Author: John Rubin
-## Interface: 120000
-## SavedVariablesPerCharacter: RC32CharacterData
-## SavedVariables: RC32MiniMapButtonPosition, RC32AccountData
-## Notes: Fully customizable Diablo Orbs, for WoW!
-RCDiabloOrbs.xml
-RC32MiniMapButton.xml

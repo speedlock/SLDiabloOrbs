@@ -19,18 +19,18 @@
 
 -- Version detection and compatibility layer
 local _, _, _, tocVersion = GetBuildInfo()
-RC32_TOC_VERSION = tocVersion or 0
+SL32_TOC_VERSION = tocVersion or 0
 
 -- Expansion detection
-RC32_IS_VANILLA = RC32_TOC_VERSION < 20000
-RC32_IS_TBC = RC32_TOC_VERSION >= 20000 and RC32_TOC_VERSION < 30000
-RC32_IS_WRATH = RC32_TOC_VERSION >= 30000 and RC32_TOC_VERSION < 40000
-RC32_IS_CATA = RC32_TOC_VERSION >= 40000 and RC32_TOC_VERSION < 50000
-RC32_IS_MOP = RC32_TOC_VERSION >= 50000 and RC32_TOC_VERSION < 60000
-RC32_IS_MOP_OR_LATER = RC32_TOC_VERSION >= 50000
-RC32_IS_CATA_OR_LATER = RC32_TOC_VERSION >= 40000
+SL32_IS_VANILLA = SL32_TOC_VERSION < 20000
+SL32_IS_TBC = SL32_TOC_VERSION >= 20000 and SL32_TOC_VERSION < 30000
+SL32_IS_WRATH = SL32_TOC_VERSION >= 30000 and SL32_TOC_VERSION < 40000
+SL32_IS_CATA = SL32_TOC_VERSION >= 40000 and SL32_TOC_VERSION < 50000
+SL32_IS_MOP = SL32_TOC_VERSION >= 50000 and SL32_TOC_VERSION < 60000
+SL32_IS_MOP_OR_LATER = SL32_TOC_VERSION >= 50000
+SL32_IS_CATA_OR_LATER = SL32_TOC_VERSION >= 40000
 
-local function rc32CanUseValue(value)
+local function SL32CanUseValue(value)
 	if issecretvalue and issecretvalue(value) then
 		if canaccessvalue then
 			return canaccessvalue(value)
@@ -40,8 +40,8 @@ local function rc32CanUseValue(value)
 	return true
 end
 
-local function rc32SafeNumber(value, fallback)
-	if not rc32CanUseValue(value) then
+local function SL32SafeNumber(value, fallback)
+	if not SL32CanUseValue(value) then
 		return fallback
 	end
 	if type(value) == "number" then
@@ -60,44 +60,82 @@ local function rc32SafeNumber(value, fallback)
 	return fallback
 end
 
--- Power type constants - MoP uses numbers, earlier versions use strings
-RC32_POWER_MANA = RC32_IS_MOP_OR_LATER and 0 or "MANA"
-RC32_POWER_RAGE = RC32_IS_MOP_OR_LATER and 1 or "RAGE"
-RC32_POWER_FOCUS = RC32_IS_MOP_OR_LATER and 2 or "FOCUS"
-RC32_POWER_ENERGY = RC32_IS_MOP_OR_LATER and 3 or "ENERGY"
-RC32_POWER_RUNIC_POWER = RC32_IS_MOP_OR_LATER and 6 or "RUNIC_POWER"
-RC32_POWER_SOUL_SHARDS = RC32_IS_CATA_OR_LATER and (RC32_IS_MOP_OR_LATER and 7 or "SOUL_SHARDS") or nil
-RC32_POWER_HOLY_POWER = RC32_IS_CATA_OR_LATER and (RC32_IS_MOP_OR_LATER and 9 or "HOLY_POWER") or nil
-RC32_POWER_CHI = RC32_IS_MOP_OR_LATER and 12 or nil
-RC32_POWER_SHADOW_ORBS = RC32_IS_CATA_OR_LATER and (RC32_IS_MOP_OR_LATER and 13 or "SHADOW_ORBS") or nil
-RC32_POWER_BURNING_EMBERS = RC32_IS_MOP_OR_LATER and 14 or nil
-RC32_POWER_DEMONIC_FURY = RC32_IS_MOP_OR_LATER and 15 or nil
-
--- Safe UnitPower wrapper that handles version differences
-function RC32_UnitPower(unit, powerType)
-	if powerType == nil then
-		return rc32SafeNumber(UnitPower(unit), 0)
+local function SL32CloneTable(value, seen)
+	if type(value) ~= "table" then
+		return value
 	end
-	-- For pre-MoP, if we got a number, don't pass it
-	if not RC32_IS_MOP_OR_LATER and type(powerType) == "number" then
-		return rc32SafeNumber(UnitPower(unit), 0)
+	seen = seen or {}
+	if seen[value] then
+		return seen[value]
 	end
-	return rc32SafeNumber(UnitPower(unit, powerType), 0)
+	local copy = {}
+	seen[value] = copy
+	for k, v in pairs(value) do
+		copy[SL32CloneTable(k, seen)] = SL32CloneTable(v, seen)
+	end
+	return copy
 end
 
-function RC32_UnitPowerMax(unit, powerType)
+local function SL32_MigrateLegacySavedVars()
+	local migrated = false
+	if not SL32CharacterData and type(RC32CharacterData) == "table" then
+		SL32CharacterData = SL32CloneTable(RC32CharacterData)
+		migrated = true
+	end
+	if not SL32AccountData and type(RC32AccountData) == "table" then
+		SL32AccountData = SL32CloneTable(RC32AccountData)
+		migrated = true
+	end
+	if SL32MiniMapButtonPosition == nil and RC32MiniMapButtonPosition ~= nil then
+		SL32MiniMapButtonPosition = SL32CloneTable(RC32MiniMapButtonPosition)
+		migrated = true
+	end
+	if migrated then
+		if not SL32AccountData then
+			SL32AccountData = {}
+		end
+		SL32AccountData.migratedFromRC32 = true
+	end
+end
+
+-- Power type constants - MoP uses numbers, earlier versions use strings
+SL32_POWER_MANA = SL32_IS_MOP_OR_LATER and 0 or "MANA"
+SL32_POWER_RAGE = SL32_IS_MOP_OR_LATER and 1 or "RAGE"
+SL32_POWER_FOCUS = SL32_IS_MOP_OR_LATER and 2 or "FOCUS"
+SL32_POWER_ENERGY = SL32_IS_MOP_OR_LATER and 3 or "ENERGY"
+SL32_POWER_RUNIC_POWER = SL32_IS_MOP_OR_LATER and 6 or "RUNIC_POWER"
+SL32_POWER_SOUL_SHARDS = SL32_IS_CATA_OR_LATER and (SL32_IS_MOP_OR_LATER and 7 or "SOUL_SHARDS") or nil
+SL32_POWER_HOLY_POWER = SL32_IS_CATA_OR_LATER and (SL32_IS_MOP_OR_LATER and 9 or "HOLY_POWER") or nil
+SL32_POWER_CHI = SL32_IS_MOP_OR_LATER and 12 or nil
+SL32_POWER_SHADOW_ORBS = SL32_IS_CATA_OR_LATER and (SL32_IS_MOP_OR_LATER and 13 or "SHADOW_ORBS") or nil
+SL32_POWER_BURNING_EMBERS = SL32_IS_MOP_OR_LATER and 14 or nil
+SL32_POWER_DEMONIC_FURY = SL32_IS_MOP_OR_LATER and 15 or nil
+
+-- Safe UnitPower wrapper that handles version differences
+function SL32_UnitPower(unit, powerType)
 	if powerType == nil then
-		return rc32SafeNumber(UnitPowerMax(unit), 0)
+		return SL32SafeNumber(UnitPower(unit), 0)
 	end
 	-- For pre-MoP, if we got a number, don't pass it
-	if not RC32_IS_MOP_OR_LATER and type(powerType) == "number" then
-		return rc32SafeNumber(UnitPowerMax(unit), 0)
+	if not SL32_IS_MOP_OR_LATER and type(powerType) == "number" then
+		return SL32SafeNumber(UnitPower(unit), 0)
 	end
-	return rc32SafeNumber(UnitPowerMax(unit, powerType), 0)
+	return SL32SafeNumber(UnitPower(unit, powerType), 0)
+end
+
+function SL32_UnitPowerMax(unit, powerType)
+	if powerType == nil then
+		return SL32SafeNumber(UnitPowerMax(unit), 0)
+	end
+	-- For pre-MoP, if we got a number, don't pass it
+	if not SL32_IS_MOP_OR_LATER and type(powerType) == "number" then
+		return SL32SafeNumber(UnitPowerMax(unit), 0)
+	end
+	return SL32SafeNumber(UnitPowerMax(unit, powerType), 0)
 end
 
 -- Combo point wrapper for retail/classic API differences
-local function RC32_GetComboPoints()
+local function SL32_GetComboPoints()
 	if GetComboPoints then
 		local points = GetComboPoints("player", "target")
 		if points then
@@ -111,7 +149,7 @@ local function RC32_GetComboPoints()
 end
 
 -- Safe RegisterUnitWatch wrappers (retail may not expose the global funcs)
-function RC32_RegisterUnitWatch(frame)
+function SL32_RegisterUnitWatch(frame)
 	if RegisterUnitWatch then
 		RegisterUnitWatch(frame)
 	elseif frame and frame.RegisterUnitWatch then
@@ -119,7 +157,7 @@ function RC32_RegisterUnitWatch(frame)
 	end
 end
 
-function RC32_UnregisterUnitWatch(frame)
+function SL32_UnregisterUnitWatch(frame)
 	if UnregisterUnitWatch then
 		UnregisterUnitWatch(frame)
 	elseif frame and frame.UnregisterUnitWatch then
@@ -128,39 +166,39 @@ function RC32_UnregisterUnitWatch(frame)
 end
 
 -- Check if a class exists in this version
-function RC32_ClassExists(className)
+function SL32_ClassExists(className)
 	if className == "Monk" then
-		return RC32_IS_MOP_OR_LATER
+		return SL32_IS_MOP_OR_LATER
 	elseif className == "Death Knight" then
-		return RC32_TOC_VERSION >= 30000 -- Wrath+
+		return SL32_TOC_VERSION >= 30000 -- Wrath+
 	end
 	return true
 end
 
 -- Check if a power type is supported
-function RC32_PowerTypeSupported(powerType)
-	if powerType == RC32_POWER_HOLY_POWER or powerType == RC32_POWER_SOUL_SHARDS or powerType == RC32_POWER_SHADOW_ORBS then
-		return RC32_IS_CATA_OR_LATER
-	elseif powerType == RC32_POWER_CHI or powerType == RC32_POWER_BURNING_EMBERS or powerType == RC32_POWER_DEMONIC_FURY then
-		return RC32_IS_MOP_OR_LATER
+function SL32_PowerTypeSupported(powerType)
+	if powerType == SL32_POWER_HOLY_POWER or powerType == SL32_POWER_SOUL_SHARDS or powerType == SL32_POWER_SHADOW_ORBS then
+		return SL32_IS_CATA_OR_LATER
+	elseif powerType == SL32_POWER_CHI or powerType == SL32_POWER_BURNING_EMBERS or powerType == SL32_POWER_DEMONIC_FURY then
+		return SL32_IS_MOP_OR_LATER
 	end
 	return true
 end
 
 --register the addon message prefix
 if C_ChatInfo and C_ChatInfo.RegisterAddonMessagePrefix then
-	C_ChatInfo.RegisterAddonMessagePrefix("RC32")
+	C_ChatInfo.RegisterAddonMessagePrefix("SL32")
 end
 
 --variable setup
-RC32localizedDisplayName, RC32className, RC32classNumber = UnitClass("player")
+SL32localizedDisplayName, SL32className, SL32classNumber = UnitClass("player")
 local charClassNumber = 0
 local playerInVehicle --bool for detecting whether or not a player is in a vehicle
 local defaultOrbSize = 150
 local orbFillingTexture = "MDO_orb_filling8.tga"
 local fillRotationTexture = "orb_fillRotation"
-local images = "Interface\\AddOns\\RCDiabloOrbs\\images\\"
-local fonts = "Interface\\Addons\\RCDiabloOrbs\\fonts\\"
+local images = "Interface\\AddOns\\SLDiabloOrbs\\images\\"
+local fonts = "Interface\\Addons\\SLDiabloOrbs\\fonts\\"
 healthOrb = nil 
 manaOrb = nil
 local vehicleInUse
@@ -194,20 +232,20 @@ orbClassColors = {
 }
 
 local fontChoices = {
-	[0] = "Interface\\AddOns\\RCDiabloOrbs\\fonts\\Of Wildflowers and Wings.ttf",
+	[0] = "Interface\\AddOns\\SLDiabloOrbs\\fonts\\Of Wildflowers and Wings.ttf",
 	[1] = "FONTS\\FRIZQT__.ttf"  
 }
 
 
 local function getClassColor()
-	if RC32classNumber then
-		RC32className = RC32localizedDisplayName
-		return RC32classNumber - 1
+	if SL32classNumber then
+		SL32className = SL32localizedDisplayName
+		return SL32classNumber - 1
 	else
 		local num = table.getn(orbClassColors)
 		for i=0,num,1 do
 			if orbClassColors[i].name == UnitClass("player") then
-				RC32className = UnitClass("player")
+				SL32className = UnitClass("player")
 				return i 
 			end
 		end
@@ -217,7 +255,7 @@ local function getClassColor()
 end
 charClassNumber = getClassColor()
 
---load preset RC32CharacterData default in the event existing data cannot be recovered
+--load preset SL32CharacterData default in the event existing data cannot be recovered
 local Hr,Hg,Hb,Ha = orbClassColors[charClassNumber].health.r, orbClassColors[charClassNumber].health.g, orbClassColors[charClassNumber].health.b, orbClassColors[charClassNumber].health.a
 local Mr,Mg,Mb,Ma = orbClassColors[charClassNumber].mana.r, orbClassColors[charClassNumber].mana.g, orbClassColors[charClassNumber].mana.b, orbClassColors[charClassNumber].mana.a
 
@@ -253,7 +291,7 @@ local defaultsTable = {
 }
 
 -- Sound options for max stack notification
-RC32_MaxStackSounds = {
+SL32_MaxStackSounds = {
 	{name = "None", id = 0},
 	{name = "Power Up", id = 12889},
 	{name = "Level Up", id = 888},
@@ -285,7 +323,7 @@ local defaultTextures = {
 	manaOrb = {fill = "MDO_orb_filling2.tga", rotation = "orb_rotation_bubbles"}
 }
 
-RC32FillTextureChoices = {
+SL32FillTextureChoices = {
 	[0] = images.. "MDO_orb_filling1.tga",
 	[1] = images.. "MDO_orb_filling2.tga",
 	[2] = images.. "MDO_orb_filling3.tga",
@@ -295,18 +333,18 @@ RC32FillTextureChoices = {
 	[6] = images.. "MDO_orb_filling7.tga",
 }
 
-RC32RotationTextureChoices = {
+SL32RotationTextureChoices = {
 	[0] = images.. "orb_rotation_galaxy",
 	[1] = images.. "orb_rotation_bubbles",
 	[2] = images.. "orb_rotation_iris"
 }
 
 -- Track selected texture indices from dropdowns
-RC32SelectedFillIndex = nil
-RC32SelectedRotationIndex = nil
+SL32SelectedFillIndex = nil
+SL32SelectedRotationIndex = nil
 
 -- Texture file names (without path) for saving
-RC32FillTextureNames = {
+SL32FillTextureNames = {
 	[0] = "MDO_orb_filling1.tga",
 	[1] = "MDO_orb_filling2.tga",
 	[2] = "MDO_orb_filling3.tga",
@@ -316,15 +354,15 @@ RC32FillTextureNames = {
 	[6] = "MDO_orb_filling7.tga",
 }
 
-RC32RotationTextureNames = {
+SL32RotationTextureNames = {
 	[0] = "orb_rotation_galaxy",
 	[1] = "orb_rotation_bubbles",
 	[2] = "orb_rotation_iris"
 }
 
 ----------------------------------------------------------Main Data Table for each character -----------------------------------------------------------------
-RC32CharacterData = defaultsTable
-RC32Textures = defaultTextures
+SL32CharacterData = defaultsTable
+SL32Textures = defaultTextures
 ---------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 -- Store original PlayerFrame position for restoration
@@ -356,7 +394,7 @@ function handlePlayerFrame(show)
 end
 
 --hide the player frame by default... we have a pet orb now, so people shouldn't be asking for it anymore.... maybe
---handlePlayerFrame(RC32CharacterData.defaultPlayerFrame.show)
+--handlePlayerFrame(SL32CharacterData.defaultPlayerFrame.show)
 
 
 --function to make any frame object movable
@@ -379,11 +417,11 @@ local function makeFrameMovable(frame,button)
 end
 
 local function valueFormat(val,petOverride)
-	if not rc32CanUseValue(val) then
+	if not SL32CanUseValue(val) then
 		return string.format("%s", val or "")
 	end
 	local newVal = val
-	if RC32CharacterData.values.formatted == true then
+	if SL32CharacterData.values.formatted == true then
 		if val > 1000000 then
 			newVal = (floor((val/1000000)*10)/10) .."m"
 		elseif val > 99999 then
@@ -405,28 +443,28 @@ local lastSafePower = 1
 local lastSafeMaxPower = 1
 local lastSafeHealthPercent = nil
 local lastSafePowerPercent = nil
-local RC32_GALAXY_ALPHA_MULTIPLIER = 0.5
+local SL32_GALAXY_ALPHA_MULTIPLIER = 0.5
 local function monitorHealth(orb)
 	local rawMaxHealth = orb.rawMaxHealth or orb.maxHealth
 	local rawCurrentHealth = orb.rawCurrentHealth or orb.currentHealth
-	if not rc32CanUseValue(rawCurrentHealth) or not rc32CanUseValue(rawMaxHealth) then
+	if not SL32CanUseValue(rawCurrentHealth) or not SL32CanUseValue(rawMaxHealth) then
 		if orb.fillingBar then
 			orb.filling:Hide()
 			orb.fillingBar:Show()
 			orb.fillingBar:SetMinMaxValues(0, rawMaxHealth or 1)
 			orb.fillingBar:SetValue(rawCurrentHealth or 0)
 		end
-		orb.galaxy1:SetAlpha(RC32_GALAXY_ALPHA_MULTIPLIER)
-		orb.galaxy2:SetAlpha(RC32_GALAXY_ALPHA_MULTIPLIER)
-		orb.galaxy3:SetAlpha(RC32_GALAXY_ALPHA_MULTIPLIER)
+		orb.galaxy1:SetAlpha(SL32_GALAXY_ALPHA_MULTIPLIER)
+		orb.galaxy2:SetAlpha(SL32_GALAXY_ALPHA_MULTIPLIER)
+		orb.galaxy3:SetAlpha(SL32_GALAXY_ALPHA_MULTIPLIER)
 		orb.font1:SetText(string.format("%s", rawCurrentHealth or ""))
 		orb.font2:SetText("")
 		return
 	end
-	local maxHealth = rc32SafeNumber(rawMaxHealth, 1)
+	local maxHealth = SL32SafeNumber(rawMaxHealth, 1)
 	if maxHealth == 0 then maxHealth = 1 end
-	local currentHealth = rc32SafeNumber(rawCurrentHealth, 1)
-	previousHealthValue = rc32SafeNumber(previousHealthValue, currentHealth)
+	local currentHealth = SL32SafeNumber(rawCurrentHealth, 1)
+	previousHealthValue = SL32SafeNumber(previousHealthValue, currentHealth)
 	local isDead = orb.isDead
 	local healthPercentage = currentHealth/maxHealth
 	local inverseHealthPercentage = math.abs(healthPercentage - 1)
@@ -474,33 +512,33 @@ local function monitorHealth(orb)
 	orb.filling:Show()
 	orb.filling:SetHeight(targetTexHeight)
 	orb.filling:SetTexCoord(0,1,math.abs(newDisplayPercentage - 1),1)
-	orb.galaxy1:SetAlpha(newDisplayPercentage * RC32_GALAXY_ALPHA_MULTIPLIER)
-	orb.galaxy2:SetAlpha(newDisplayPercentage * RC32_GALAXY_ALPHA_MULTIPLIER)
-	orb.galaxy3:SetAlpha(newDisplayPercentage * RC32_GALAXY_ALPHA_MULTIPLIER)
+	orb.galaxy1:SetAlpha(newDisplayPercentage * SL32_GALAXY_ALPHA_MULTIPLIER)
+	orb.galaxy2:SetAlpha(newDisplayPercentage * SL32_GALAXY_ALPHA_MULTIPLIER)
+	orb.galaxy3:SetAlpha(newDisplayPercentage * SL32_GALAXY_ALPHA_MULTIPLIER)
 end
 
 local previousPowerValue = 0
 local function monitorPower(orb)
 	local rawMaxPower = orb.rawMaxPower or orb.maxPower
 	local rawCurrentPower = orb.rawCurrentPower or orb.currentPower
-	if not rc32CanUseValue(rawCurrentPower) or not rc32CanUseValue(rawMaxPower) then
+	if not SL32CanUseValue(rawCurrentPower) or not SL32CanUseValue(rawMaxPower) then
 		if orb.fillingBar then
 			orb.filling:Hide()
 			orb.fillingBar:Show()
 			orb.fillingBar:SetMinMaxValues(0, rawMaxPower or 1)
 			orb.fillingBar:SetValue(rawCurrentPower or 0)
 		end
-		orb.galaxy1:SetAlpha(RC32_GALAXY_ALPHA_MULTIPLIER)
-		orb.galaxy2:SetAlpha(RC32_GALAXY_ALPHA_MULTIPLIER)
-		orb.galaxy3:SetAlpha(RC32_GALAXY_ALPHA_MULTIPLIER)
+		orb.galaxy1:SetAlpha(SL32_GALAXY_ALPHA_MULTIPLIER)
+		orb.galaxy2:SetAlpha(SL32_GALAXY_ALPHA_MULTIPLIER)
+		orb.galaxy3:SetAlpha(SL32_GALAXY_ALPHA_MULTIPLIER)
 		orb.font1:SetText(string.format("%s", rawCurrentPower or ""))
 		orb.font2:SetText("")
 		return
 	end
-	local maxPower = rc32SafeNumber(rawMaxPower, 1)
+	local maxPower = SL32SafeNumber(rawMaxPower, 1)
 	if maxPower == 0 then maxPower = 1 end
-	local currentPower = rc32SafeNumber(rawCurrentPower, 1)
-	previousPowerValue = rc32SafeNumber(previousPowerValue, currentPower)
+	local currentPower = SL32SafeNumber(rawCurrentPower, 1)
+	previousPowerValue = SL32SafeNumber(previousPowerValue, currentPower)
 	local isDead = orb.isDead
 	local powerPercentage = currentPower/maxPower
 	local inversePowerPercentage = math.abs(powerPercentage - 1)
@@ -549,9 +587,9 @@ local function monitorPower(orb)
 	orb.filling:Show()
 	orb.filling:SetHeight(targetTexHeight)
 	orb.filling:SetTexCoord(0,1,math.abs(newDisplayPercentage-1),1)
-	orb.galaxy1:SetAlpha(newDisplayPercentage * RC32_GALAXY_ALPHA_MULTIPLIER)
-	orb.galaxy2:SetAlpha(newDisplayPercentage * RC32_GALAXY_ALPHA_MULTIPLIER)
-	orb.galaxy3:SetAlpha(newDisplayPercentage * RC32_GALAXY_ALPHA_MULTIPLIER)
+	orb.galaxy1:SetAlpha(newDisplayPercentage * SL32_GALAXY_ALPHA_MULTIPLIER)
+	orb.galaxy2:SetAlpha(newDisplayPercentage * SL32_GALAXY_ALPHA_MULTIPLIER)
+	orb.galaxy3:SetAlpha(newDisplayPercentage * SL32_GALAXY_ALPHA_MULTIPLIER)
 end
 
 local previousPetHealth = 0
@@ -564,24 +602,24 @@ local lastSafePetPowerPercent = nil
 local function PetHealthUpdate(orb)
 	local rawMaxHealth = orb.rawPetMaxHealth or orb.petMaxHealth
 	local rawCurrentHealth = orb.rawPetCurrentHealth or orb.petCurrentHealth
-	if not rc32CanUseValue(rawCurrentHealth) or not rc32CanUseValue(rawMaxHealth) then
+	if not SL32CanUseValue(rawCurrentHealth) or not SL32CanUseValue(rawMaxHealth) then
 		if orb.filling1Bar then
 			orb.filling1:Hide()
 			orb.filling1Bar:Show()
 			orb.filling1Bar:SetMinMaxValues(0, rawMaxHealth or 1)
 			orb.filling1Bar:SetValue(rawCurrentHealth or 0)
 		end
-		orb.galaxy1:SetAlpha(RC32_GALAXY_ALPHA_MULTIPLIER)
-		orb.galaxy2:SetAlpha(RC32_GALAXY_ALPHA_MULTIPLIER)
-		orb.galaxy3:SetAlpha(RC32_GALAXY_ALPHA_MULTIPLIER)
+		orb.galaxy1:SetAlpha(SL32_GALAXY_ALPHA_MULTIPLIER)
+		orb.galaxy2:SetAlpha(SL32_GALAXY_ALPHA_MULTIPLIER)
+		orb.galaxy3:SetAlpha(SL32_GALAXY_ALPHA_MULTIPLIER)
 		orb.font1:SetText(string.format("%s", rawCurrentHealth or ""))
 		orb.font3:SetText("")
 		return
 	end
-	local maxHealth = rc32SafeNumber(rawMaxHealth, 1)
+	local maxHealth = SL32SafeNumber(rawMaxHealth, 1)
 	if maxHealth == 0 then maxHealth = 1 end
-	local currentHealth = rc32SafeNumber(rawCurrentHealth, 0)
-	previousPetHealth = rc32SafeNumber(previousPetHealth, currentHealth)
+	local currentHealth = SL32SafeNumber(rawCurrentHealth, 0)
+	previousPetHealth = SL32SafeNumber(previousPetHealth, currentHealth)
 	local healthPercentage = currentHealth/maxHealth
 	local inverseHealthPercentage = math.abs(healthPercentage - 1)
 
@@ -633,24 +671,24 @@ local previousPetPower = 0
 local function PetPowerUpdate(orb)
 	local rawMaxPower = orb.rawPetMaxPower or orb.petMaxPower
 	local rawCurrentPower = orb.rawPetCurrentPower or orb.petCurrentPower
-	if not rc32CanUseValue(rawCurrentPower) or not rc32CanUseValue(rawMaxPower) then
+	if not SL32CanUseValue(rawCurrentPower) or not SL32CanUseValue(rawMaxPower) then
 		if orb.filling2Bar then
 			orb.filling2:Hide()
 			orb.filling2Bar:Show()
 			orb.filling2Bar:SetMinMaxValues(0, rawMaxPower or 1)
 			orb.filling2Bar:SetValue(rawCurrentPower or 0)
 		end
-		orb.galaxy1:SetAlpha(RC32_GALAXY_ALPHA_MULTIPLIER)
-		orb.galaxy2:SetAlpha(RC32_GALAXY_ALPHA_MULTIPLIER)
-		orb.galaxy3:SetAlpha(RC32_GALAXY_ALPHA_MULTIPLIER)
+		orb.galaxy1:SetAlpha(SL32_GALAXY_ALPHA_MULTIPLIER)
+		orb.galaxy2:SetAlpha(SL32_GALAXY_ALPHA_MULTIPLIER)
+		orb.galaxy3:SetAlpha(SL32_GALAXY_ALPHA_MULTIPLIER)
 		orb.font2:SetText(string.format("%s", rawCurrentPower or ""))
 		orb.font4:SetText("")
 		return
 	end
-	local maxPower = rc32SafeNumber(rawMaxPower, 1)
+	local maxPower = SL32SafeNumber(rawMaxPower, 1)
 	if maxPower == 0 then maxPower = 1 end
-	local currentPower = rc32SafeNumber(rawCurrentPower, 0)
-	previousPetPower = rc32SafeNumber(previousPetPower, currentPower)
+	local currentPower = SL32SafeNumber(rawCurrentPower, 0)
+	previousPetPower = SL32SafeNumber(previousPetPower, currentPower)
 	local powerPercentage = currentPower/maxPower
 	local inversePowerPercentage = math.abs(powerPercentage - 1)
 
@@ -712,7 +750,7 @@ local function CreateGalaxy(orb, file, duration,size,x,y)
 	galTex:SetAllPoints(galaxy)
 	galTex:SetTexture(file)
 	galTex:SetBlendMode("ADD")
-	galTex:SetAlpha(RC32_GALAXY_ALPHA_MULTIPLIER)
+	galTex:SetAlpha(SL32_GALAXY_ALPHA_MULTIPLIER)
 	galaxy.texture = galTex
 	
 	local animGroup = galaxy:CreateAnimationGroup()
@@ -791,7 +829,7 @@ local function CreateOrb(parent,name,size,fillTexture,galaxyTexture,offsetX,offs
 	orb.fillingBar:SetValue(1)
 	orb.fillingBar:Hide()
 	orb.fillingBarText = orb.fillingBar:CreateFontString(nil, "OVERLAY")
-	orb.fillingBarText:SetFont(RC32CharacterData.font,28,"THINOUTLINE")
+	orb.fillingBarText:SetFont(SL32CharacterData.font,28,"THINOUTLINE")
 	orb.fillingBarText:SetPoint("CENTER",0,15)
 	local orbGlossHolder = CreateFrame("Frame",nil,orb)
 	orbGlossHolder:SetAllPoints(orb)
@@ -815,10 +853,10 @@ local function CreateOrb(parent,name,size,fillTexture,galaxyTexture,offsetX,offs
 	orb.fontHolder:SetFrameStrata("MEDIUM")
 	orb.fontHolder:SetAllPoints(orb)
 	orb.font1 = orb.fontHolder:CreateFontString(nil, "OVERLAY")
-	orb.font1:SetFont(RC32CharacterData.font,28,"THINOUTLINE")
+	orb.font1:SetFont(SL32CharacterData.font,28,"THINOUTLINE")
 	orb.font1:SetPoint("CENTER",0,15)
 	orb.font2 = orb.fontHolder:CreateFontString(nil,"OVERLAY")
-	orb.font2:SetFont(RC32CharacterData.font,16,"THINOUTLINE")
+	orb.font2:SetFont(SL32CharacterData.font,16,"THINOUTLINE")
 	orb.font2:SetPoint("CENTER",0,-5)
 	
 	--position defaults
@@ -883,7 +921,7 @@ local function CreatePetOrb(parent,name,size,offsetX,offsetY,monitorFunc)
 	orb.filling1Bar:SetValue(1)
 	orb.filling1Bar:Hide()
 	orb.filling1BarText = orb.filling1Bar:CreateFontString(nil, "OVERLAY")
-	orb.filling1BarText:SetFont(RC32CharacterData.font,14,"THINOUTLINE")
+	orb.filling1BarText:SetFont(SL32CharacterData.font,14,"THINOUTLINE")
 	orb.filling1BarText:SetPoint("CENTER",-20,5)
 	orb.filling2 = orb:CreateTexture(nil,"BACKGROUND")
 	orb.filling2:SetTexture(images.."petFilling_power.tga")
@@ -900,7 +938,7 @@ local function CreatePetOrb(parent,name,size,offsetX,offsetY,monitorFunc)
 	orb.filling2Bar:SetValue(1)
 	orb.filling2Bar:Hide()
 	orb.filling2BarText = orb.filling2Bar:CreateFontString(nil, "OVERLAY")
-	orb.filling2BarText:SetFont(RC32CharacterData.font,14,"THINOUTLINE")
+	orb.filling2BarText:SetFont(SL32CharacterData.font,14,"THINOUTLINE")
 	orb.filling2BarText:SetPoint("CENTER",20,5)
 	local orbGlossHolder = CreateFrame("Frame",nil,orb)
 	orbGlossHolder:SetAllPoints(orb)
@@ -914,9 +952,9 @@ local function CreatePetOrb(parent,name,size,offsetX,offsetY,monitorFunc)
 	orb.divider.texture:SetTexture(images.."middleBar.tga")
 	orb.divider:SetAllPoints(true)
 	orb.divider.texture:SetAllPoints(true)
-	orb.galaxy1 = CreateGalaxy(orb, RC32RotationTextureChoices[1].."1.tga",36,size-8,0,0)
-	orb.galaxy2 = CreateGalaxy(orb, RC32RotationTextureChoices[1].."2.tga", 22,size-8,0,0)
-	orb.galaxy3 = CreateGalaxy(orb, RC32RotationTextureChoices[1].."3.tga", 29,size-8,0,0)
+	orb.galaxy1 = CreateGalaxy(orb, SL32RotationTextureChoices[1].."1.tga",36,size-8,0,0)
+	orb.galaxy2 = CreateGalaxy(orb, SL32RotationTextureChoices[1].."2.tga", 22,size-8,0,0)
+	orb.galaxy3 = CreateGalaxy(orb, SL32RotationTextureChoices[1].."3.tga", 29,size-8,0,0)
 	orb.galaxy1:SetAlpha(0.3)
 	orb.galaxy2:SetAlpha(0.3)
 	orb.galaxy3:SetAlpha(0.3)
@@ -927,19 +965,19 @@ local function CreatePetOrb(parent,name,size,offsetX,offsetY,monitorFunc)
 	orb.fontHolder:SetFrameStrata("MEDIUM")
 	orb.fontHolder:SetAllPoints(orb)
 	orb.font1 = orb.fontHolder:CreateFontString(nil, "OVERLAY")
-	orb.font1:SetFont(RC32CharacterData.font,14,"THINOUTLINE")
+	orb.font1:SetFont(SL32CharacterData.font,14,"THINOUTLINE")
 	orb.font1:SetPoint("CENTER",-20,5)
 	orb.font1:SetText("100")
 	orb.font2 = orb.fontHolder:CreateFontString(nil,"OVERLAY")
-	orb.font2:SetFont(RC32CharacterData.font,14,"THINOUTLINE")
+	orb.font2:SetFont(SL32CharacterData.font,14,"THINOUTLINE")
 	orb.font2:SetPoint("CENTER",20,5)
 	orb.font2:SetText("100")
 	orb.font3 = orb.fontHolder:CreateFontString(nil, "OVERLAY")
-	orb.font3:SetFont(RC32CharacterData.font,9,"THINOUTLINE")
+	orb.font3:SetFont(SL32CharacterData.font,9,"THINOUTLINE")
 	orb.font3:SetPoint("CENTER",-20,-8)
 	orb.font3:SetText("100")
 	orb.font4 = orb.fontHolder:CreateFontString(nil,"OVERLAY")
-	orb.font4:SetFont(RC32CharacterData.font,9,"THINOUTLINE")
+	orb.font4:SetFont(SL32CharacterData.font,9,"THINOUTLINE")
 	orb.font4:SetPoint("CENTER",20,-8)
 	orb.font4:SetText("100")
 	
@@ -982,7 +1020,7 @@ local function CreatePetOrb(parent,name,size,offsetX,offsetY,monitorFunc)
 		GameTooltip:Hide()
 	end)
 
-	RC32_RegisterUnitWatch(orb.secure)
+	SL32_RegisterUnitWatch(orb.secure)
 	orb.secure:SetScript("OnShow", function() orb:Show() end)
 	orb.secure:SetScript("OnHide", function() orb:Hide() end)
 
@@ -1023,11 +1061,11 @@ local function CreateXMLOrb(parent,name,size,fillTexture,galaxyTexture)
 	orb.fontHolder:SetFrameStrata("HIGH")
 	orb.fontHolder:SetAllPoints(orb)
 	orb.font1 = orb.fontHolder:CreateFontString(nil, "OVERLAY")
-	orb.font1:SetFont(RC32CharacterData.font,28,"THINOUTLINE")
+	orb.font1:SetFont(SL32CharacterData.font,28,"THINOUTLINE")
 	orb.font1:SetText("100")
 	orb.font1:SetPoint("CENTER",0,15)
 	orb.font2 = orb.fontHolder:CreateFontString(nil,"OVERLAY")
-	orb.font2:SetFont(RC32CharacterData.font,16,"THINOUTLINE")
+	orb.font2:SetFont(SL32CharacterData.font,16,"THINOUTLINE")
 	orb.font2:SetText("100000")
 	orb.font2:SetPoint("CENTER",0,-5)
 	
@@ -1044,7 +1082,7 @@ local function CreateXMLOrb(parent,name,size,fillTexture,galaxyTexture)
 end
 
 local function addArtwork(file,orb,name,offsetX,offsetY,height,width)
-	local art = CreateFrame("Frame","RC32"..name,orb)
+	local art = CreateFrame("Frame","SL32"..name,orb)
 	art:SetPoint("CENTER",offsetX,offsetY)
 	art:SetHeight(height)
 	art:SetWidth(width)
@@ -1055,78 +1093,78 @@ local function addArtwork(file,orb,name,offsetX,offsetY,height,width)
 	return art
 end
 
-function RC32SetGlobalScale(val)
+function SL32SetGlobalScale(val)
 	val = val/100
 	healthOrb:SetScale(val)
-	RC32CharacterData.healthOrb.scale = val
+	SL32CharacterData.healthOrb.scale = val
 	manaOrb:SetScale(val)
-	RC32CharacterData.manaOrb.scale = val
+	SL32CharacterData.manaOrb.scale = val
 end
 
-function RC32SetOrbScale(orbType, val)
+function SL32SetOrbScale(orbType, val)
 	val = val/100
 	if orbType == "health" then
 		healthOrb:SetScale(val)
-		RC32CharacterData.healthOrb.scale = val
+		SL32CharacterData.healthOrb.scale = val
 	elseif orbType == "mana" then
 		manaOrb:SetScale(val)
-		RC32CharacterData.manaOrb.scale = val
+		SL32CharacterData.manaOrb.scale = val
 	elseif orbType == "pet" then
 		petOrb:SetScale(val)
-		RC32CharacterData.petOrb.scale = val
+		SL32CharacterData.petOrb.scale = val
 	end
 end
 
-function RC32SetPowerTrackerRotation(degrees)
+function SL32SetPowerTrackerRotation(degrees)
 	if segmentedPowerTracker then
 		segmentedPowerTracker:SetRotation(degrees)
 		-- Save to account-wide data so all characters share the same position
-		if not RC32AccountData then RC32AccountData = {} end
-		RC32AccountData.powerTrackerRotation = degrees
+		if not SL32AccountData then SL32AccountData = {} end
+		SL32AccountData.powerTrackerRotation = degrees
 	end
 end
 
-function RC32SetPowerTrackerScale(val)
+function SL32SetPowerTrackerScale(val)
 	if segmentedPowerTracker then
 		segmentedPowerTracker:SetScale(val / 100)
 		-- Save to account-wide data so all characters share the same scale
-		if not RC32AccountData then RC32AccountData = {} end
-		RC32AccountData.powerTrackerScale = val
+		if not SL32AccountData then SL32AccountData = {} end
+		SL32AccountData.powerTrackerScale = val
 	end
 end
 
 -- Initialize the max stack sound dropdown
-function RC32_InitMaxStackSoundDropdown()
-	local dropdown = RC32MaxStackSoundDropdown
+function SL32_InitMaxStackSoundDropdown()
+	local dropdown = SL32MaxStackSoundDropdown
 	if not dropdown then return end
 	
 	UIDropDownMenu_SetWidth(dropdown, 100)
 	UIDropDownMenu_SetButtonWidth(dropdown, 124)
 	
-	local selectedIndex = RC32CharacterData.powerFrame.maxStackSound or 1
-	UIDropDownMenu_SetText(dropdown, RC32_MaxStackSounds[selectedIndex].name)
+	local selectedIndex = SL32CharacterData.powerFrame.maxStackSound or 1
+	UIDropDownMenu_SetText(dropdown, SL32_MaxStackSounds[selectedIndex].name)
 	
 	UIDropDownMenu_Initialize(dropdown, function(self, level)
-		for i, sound in ipairs(RC32_MaxStackSounds) do
+		for i, sound in ipairs(SL32_MaxStackSounds) do
 			local info = UIDropDownMenu_CreateInfo()
 			info.text = sound.name
 			info.value = i
 			info.func = function(self)
-				RC32CharacterData.powerFrame.maxStackSound = self.value
-				UIDropDownMenu_SetText(dropdown, RC32_MaxStackSounds[self.value].name)
+				SL32CharacterData.powerFrame.maxStackSound = self.value
+				UIDropDownMenu_SetText(dropdown, SL32_MaxStackSounds[self.value].name)
 				-- Play preview sound on Master channel for louder volume
-				if RC32_MaxStackSounds[self.value].id > 0 then
-					PlaySound(RC32_MaxStackSounds[self.value].id, "Master")
+				if SL32_MaxStackSounds[self.value].id > 0 then
+					PlaySound(SL32_MaxStackSounds[self.value].id, "Master")
 				end
 			end
-			info.checked = (i == (RC32CharacterData.powerFrame.maxStackSound or 1))
+			info.checked = (i == (SL32CharacterData.powerFrame.maxStackSound or 1))
 			UIDropDownMenu_AddButton(info, level)
 		end
 	end)
 end
 
 -- Menu Background options
-RC32_MenuBackgrounds = {
+SL32_MenuBackgrounds = {
 	[1] = {name = "Chicken", file = "CHICKEN_backdrop.tga"},
 	[2] = {name = "Sindragosa", file = "Sindragosa.tga"},
 	[3] = {name = "Lich King", file = "Lich_King.tga"},
@@ -1137,37 +1175,37 @@ RC32_MenuBackgrounds = {
 	[8] = {name = "Horde", file = "Horde.tga"},
 }
 
-function RC32_InitMenuBackgroundDropdown()
-	local dropdown = RC32MenuBackgroundDropdown
+function SL32_InitMenuBackgroundDropdown()
+	local dropdown = SL32MenuBackgroundDropdown
 	if not dropdown then return end
 	
 	UIDropDownMenu_SetWidth(dropdown, 120)
 	UIDropDownMenu_SetButtonWidth(dropdown, 144)
 	
-	local selectedIndex = RC32AccountData and RC32AccountData.menuBackground or 1
-	UIDropDownMenu_SetText(dropdown, RC32_MenuBackgrounds[selectedIndex].name)
+	local selectedIndex = SL32AccountData and SL32AccountData.menuBackground or 1
+	UIDropDownMenu_SetText(dropdown, SL32_MenuBackgrounds[selectedIndex].name)
 	
 	UIDropDownMenu_Initialize(dropdown, function(self, level)
-		for i, bg in ipairs(RC32_MenuBackgrounds) do
+		for i, bg in ipairs(SL32_MenuBackgrounds) do
 			local info = UIDropDownMenu_CreateInfo()
 			info.text = bg.name
 			info.value = i
 			info.func = function(self)
-				if not RC32AccountData then RC32AccountData = {} end
-				RC32AccountData.menuBackground = self.value
-				UIDropDownMenu_SetText(dropdown, RC32_MenuBackgrounds[self.value].name)
-				RC32_SetMenuBackground(self.value)
+				if not SL32AccountData then SL32AccountData = {} end
+				SL32AccountData.menuBackground = self.value
+				UIDropDownMenu_SetText(dropdown, SL32_MenuBackgrounds[self.value].name)
+				SL32_SetMenuBackground(self.value)
 			end
-			info.checked = (i == (RC32AccountData and RC32AccountData.menuBackground or 1))
+			info.checked = (i == (SL32AccountData and SL32AccountData.menuBackground or 1))
 			UIDropDownMenu_AddButton(info, level)
 		end
 	end)
 end
 
-function RC32_SetMenuBackground(index)
-	local bg = RC32_MenuBackgrounds[index]
-	if bg and RC32GUIBackground then
-		RC32GUIBackground:SetTexture("Interface\\AddOns\\RCDiabloOrbs\\images\\"..bg.file)
+function SL32_SetMenuBackground(index)
+	local bg = SL32_MenuBackgrounds[index]
+	if bg and SL32GUIBackground then
+		SL32GUIBackground:SetTexture("Interface\\AddOns\\SLDiabloOrbs\\images\\"..bg.file)
 	end
 	-- Set border color based on background
 	-- Chicken = white, Sindragosa/Lich King/Lich King 2 = purple, Illidan = yellow, Deathwing = red, Alliance = blue, Horde = red
@@ -1182,14 +1220,14 @@ function RC32_SetMenuBackground(index)
 		[8] = {r = 1, g = 0.3, b = 0.3},       -- Horde = red
 	}
 	local color = borderColors[index] or {r = 1, g = 1, b = 1}
-	RC32_SetBorderColor(color.r, color.g, color.b)
+	SL32_SetBorderColor(color.r, color.g, color.b)
 end
 
-function RC32MonitorPowers(frame)
+function SL32MonitorPowers(frame)
 	local powerType
 	powerFrame.text:SetPoint("CENTER",-1,0)
-	if RC32className == "Warlock" then
-		if not RC32_IS_CATA_OR_LATER then
+	if SL32className == "Warlock" then
+		if not SL32_IS_CATA_OR_LATER then
 			-- Pre-Cata warlocks don't have these resource types
 			frame.backDrop:Hide()
 			frame.text:Hide()
@@ -1198,17 +1236,17 @@ function RC32MonitorPowers(frame)
 		local maxResource = 0
 		local usable, nomana = IsUsableSpell("Metamorphosis")
 		if usable or (not usable and nomana) then
-			powerType = RC32_IS_MOP_OR_LATER and 15 or nil
+			powerType = SL32_IS_MOP_OR_LATER and 15 or nil
 			maxResource = 1000
 		end
 		usable, nomana = IsUsableSpell("Chaos Bolt")
 		if usable or (not usable and nomana) then
-			powerType = RC32_IS_MOP_OR_LATER and 14 or nil
+			powerType = SL32_IS_MOP_OR_LATER and 14 or nil
 			maxResource = 3
 		end
 		usable, nomana = IsUsableSpell("Soulburn")
 		if usable or (not usable and nomana) then
-			powerType = RC32_POWER_SOUL_SHARDS
+			powerType = SL32_POWER_SOUL_SHARDS
 			maxResource = 3
 		end
 		if not powerType then
@@ -1216,9 +1254,9 @@ function RC32MonitorPowers(frame)
 			frame.text:Hide()
 			return
 		end
-		local numShards = RC32_UnitPower("player",powerType)
-		if RC32_IS_MOP_OR_LATER and powerType == 14 then
-			numShards = (RC32_UnitPower("player",powerType,true)/10)
+		local numShards = SL32_UnitPower("player",powerType)
+		if SL32_IS_MOP_OR_LATER and powerType == 14 then
+			numShards = (SL32_UnitPower("player",powerType,true)/10)
 		end
 		if numShards > 0 then
 			if not frame.backDrop:IsVisible() then
@@ -1232,13 +1270,13 @@ function RC32MonitorPowers(frame)
 			end
 		end
 		if numShards > 999 then
-			powerFrame.text:SetFont(RC32CharacterData.font,15,"THINOUTLINE")
+			powerFrame.text:SetFont(SL32CharacterData.font,15,"THINOUTLINE")
 		elseif numShards > 99 then
-			powerFrame.text:SetFont(RC32CharacterData.font,18,"THINOUTLINE")
+			powerFrame.text:SetFont(SL32CharacterData.font,18,"THINOUTLINE")
 		elseif numShards > 9 then
-			powerFrame.text:SetFont(RC32CharacterData.font,24,"THINOUTLINE")
+			powerFrame.text:SetFont(SL32CharacterData.font,24,"THINOUTLINE")
 		else
-			powerFrame.text:SetFont(RC32CharacterData.font,26,"THINOUTLINE")
+			powerFrame.text:SetFont(SL32CharacterData.font,26,"THINOUTLINE")
 		end
 		frame.text:SetText(numShards)
 		if numShards > 1 then
@@ -1251,14 +1289,14 @@ function RC32MonitorPowers(frame)
 		else
 			powerFrame.fontHolder.animGroup:Stop()
 		end
-	elseif RC32className == "Paladin" then
-		if not RC32_IS_CATA_OR_LATER or not RC32_POWER_HOLY_POWER then
+	elseif SL32className == "Paladin" then
+		if not SL32_IS_CATA_OR_LATER or not SL32_POWER_HOLY_POWER then
 			frame.backDrop:Hide()
 			frame.text:Hide()
 			return
 		end
-		powerType = RC32_POWER_HOLY_POWER
-		local numHolyPower = RC32_UnitPower("player",powerType)
+		powerType = SL32_POWER_HOLY_POWER
+		local numHolyPower = SL32_UnitPower("player",powerType)
 		if numHolyPower > 0 then
 			if not frame.backDrop:IsVisible() then
 				frame.backDrop:Show()
@@ -1279,14 +1317,14 @@ function RC32MonitorPowers(frame)
 		else
 			powerFrame.fontHolder.animGroup:Stop()
 		end
-	elseif RC32className == "Monk" then
-		if not RC32_IS_MOP_OR_LATER or not RC32_POWER_CHI then
+	elseif SL32className == "Monk" then
+		if not SL32_IS_MOP_OR_LATER or not SL32_POWER_CHI then
 			frame.backDrop:Hide()
 			frame.text:Hide()
 			return
 		end
-		powerType = RC32_POWER_CHI
-		local numHolyPower = RC32_UnitPower("player",powerType)
+		powerType = SL32_POWER_CHI
+		local numHolyPower = SL32_UnitPower("player",powerType)
 		if numHolyPower > 0 then
 			if not frame.backDrop:IsVisible() then
 				frame.backDrop:Show()
@@ -1307,14 +1345,14 @@ function RC32MonitorPowers(frame)
 		else
 			powerFrame.fontHolder.animGroup:Stop()
 		end
-	elseif RC32className == "Priest" then
-		if not RC32_IS_CATA_OR_LATER or not RC32_POWER_SHADOW_ORBS then
+	elseif SL32className == "Priest" then
+		if not SL32_IS_CATA_OR_LATER or not SL32_POWER_SHADOW_ORBS then
 			frame.backDrop:Hide()
 			frame.text:Hide()
 			return
 		end
-		powerType = RC32_POWER_SHADOW_ORBS
-		local numHolyPower = RC32_UnitPower("player",powerType)
+		powerType = SL32_POWER_SHADOW_ORBS
+		local numHolyPower = SL32_UnitPower("player",powerType)
 		if numHolyPower > 0 then
 			if not frame.backDrop:IsVisible() then
 				frame.backDrop:Show()
@@ -1335,8 +1373,8 @@ function RC32MonitorPowers(frame)
 		else
 			powerFrame.fontHolder.animGroup:Stop()
 		end
-	elseif RC32className == "Rogue" or RC32className == "Druid" then
-		local comboPoints = RC32_GetComboPoints()
+	elseif SL32className == "Rogue" or SL32className == "Druid" then
+		local comboPoints = SL32_GetComboPoints()
 		if comboPoints > 0 then
 			if not frame.backDrop:IsVisible() then
 				frame.backDrop:Show()
@@ -1357,7 +1395,7 @@ function RC32MonitorPowers(frame)
 		else
 			powerFrame.fontHolder.animGroup:Stop()
 		end
-	elseif RC32className == "Mage" then
+	elseif SL32className == "Mage" then
 		--turns out there is no way to track the ice shards for Mage.  Stubbed for now.
 	end
 
@@ -1368,7 +1406,7 @@ segmentedPowerTracker = nil  -- Global so XML can access it
 local function CreateSegmentedPowerTracker(parentOrb, numSegments, orbSize)
 	-- Create container frame, same size as the ring overlay
 	local trackerSize = orbSize + 40
-	local tracker = CreateFrame("Frame", "RC32SegmentedPowerTracker", parentOrb)
+	local tracker = CreateFrame("Frame", "SL32SegmentedPowerTracker", parentOrb)
 	tracker:SetSize(trackerSize, trackerSize)
 	tracker:SetPoint("CENTER", parentOrb, "CENTER", 0, 0)
 	tracker:SetFrameLevel(parentOrb:GetFrameLevel() + 1)
@@ -1380,10 +1418,10 @@ local function CreateSegmentedPowerTracker(parentOrb, numSegments, orbSize)
 	
 	-- Get colors with fallback defaults
 	local r, g, b = 1, 1, 1
-	if RC32CharacterData and RC32CharacterData.healthOrb and RC32CharacterData.healthOrb.orbColor then
-		r = RC32CharacterData.healthOrb.orbColor.r or 1
-		g = RC32CharacterData.healthOrb.orbColor.g or 1
-		b = RC32CharacterData.healthOrb.orbColor.b or 1
+	if SL32CharacterData and SL32CharacterData.healthOrb and SL32CharacterData.healthOrb.orbColor then
+		r = SL32CharacterData.healthOrb.orbColor.r or 1
+		g = SL32CharacterData.healthOrb.orbColor.g or 1
+		b = SL32CharacterData.healthOrb.orbColor.b or 1
 	end
 	
 	-- We have 4 ember segment textures, each covering ~22.5 degrees
@@ -1397,7 +1435,7 @@ local function CreateSegmentedPowerTracker(parentOrb, numSegments, orbSize)
 		backdrop:SetPoint("CENTER", tracker, "CENTER", 0, 0)
 		-- Use modulo to cycle through available textures if more than 4 segments
 		local texIndex = ((i - 1) % 4) + 1
-		backdrop:SetTexture("Interface\\AddOns\\RCDiabloOrbs\\images\\ember_segment_"..texIndex..".tga")
+		backdrop:SetTexture("Interface\\AddOns\\SLDiabloOrbs\\images\\ember_segment_"..texIndex..".tga")
 		backdrop:SetVertexColor(0.3, 0.3, 0.3, 0.6)  -- Grey, semi-transparent
 		backdrop:Show()  -- Always visible
 		tracker.backdropSegments[i] = backdrop
@@ -1410,7 +1448,7 @@ local function CreateSegmentedPowerTracker(parentOrb, numSegments, orbSize)
 		segment:SetPoint("CENTER", tracker, "CENTER", 0, 0)
 		-- Use modulo to cycle through available textures if more than 4 segments
 		local texIndex = ((i - 1) % 4) + 1
-		segment:SetTexture("Interface\\AddOns\\RCDiabloOrbs\\images\\ember_segment_"..texIndex..".tga")
+		segment:SetTexture("Interface\\AddOns\\SLDiabloOrbs\\images\\ember_segment_"..texIndex..".tga")
 		-- Use the health orb's class color
 		segment:SetVertexColor(r, g, b, 1)
 		segment:Hide()  -- Start hidden
@@ -1432,8 +1470,8 @@ local function CreateSegmentedPowerTracker(parentOrb, numSegments, orbSize)
 		
 		-- Play sound when reaching max stacks (and wasn't already at max)
 		if currentPower >= self.numSegments and self.previousPower < self.numSegments then
-			local soundIndex = RC32CharacterData.powerFrame.maxStackSound or 1
-			local soundId = RC32_MaxStackSounds[soundIndex] and RC32_MaxStackSounds[soundIndex].id or 0
+			local soundIndex = SL32CharacterData.powerFrame.maxStackSound or 1
+			local soundId = SL32_MaxStackSounds[soundIndex] and SL32_MaxStackSounds[soundIndex].id or 0
 			if soundId > 0 then
 				PlaySound(soundId, "Master")
 			end
@@ -1475,51 +1513,51 @@ local function CreateSegmentedPowerTracker(parentOrb, numSegments, orbSize)
 end
 
 -- Segmented power tracker monitor function
-function RC32MonitorSegmentedPowers(frame)
-	if not RC32CharacterData.powerFrame or not RC32CharacterData.powerFrame.show then
+function SL32MonitorSegmentedPowers(frame)
+	if not SL32CharacterData.powerFrame or not SL32CharacterData.powerFrame.show then
 		return
 	end
 	
 	local powerType
 	local numPower = 0
 	
-	if RC32className == "Warlock" then
-		if RC32_IS_CATA_OR_LATER then
+	if SL32className == "Warlock" then
+		if SL32_IS_CATA_OR_LATER then
 			powerType = UnitPowerType("player")
 			if powerType == 0 then
-				if RC32_IS_MOP_OR_LATER and RC32_UnitPowerMax("player", 14) > 0 then
+				if SL32_IS_MOP_OR_LATER and SL32_UnitPowerMax("player", 14) > 0 then
 					powerType = 14  -- Burning Embers
-				elseif RC32_IS_MOP_OR_LATER and RC32_UnitPowerMax("player", 11) > 0 then
+				elseif SL32_IS_MOP_OR_LATER and SL32_UnitPowerMax("player", 11) > 0 then
 					powerType = 11  -- Demonic Fury
 				else
-					powerType = RC32_POWER_SOUL_SHARDS
+					powerType = SL32_POWER_SOUL_SHARDS
 				end
 			end
-			numPower = RC32_UnitPower("player", powerType)
+			numPower = SL32_UnitPower("player", powerType)
 		end
-	elseif RC32className == "Paladin" then
-		if RC32_IS_CATA_OR_LATER and RC32_POWER_HOLY_POWER then
-			powerType = RC32_POWER_HOLY_POWER
-			numPower = RC32_UnitPower("player", powerType)
+	elseif SL32className == "Paladin" then
+		if SL32_IS_CATA_OR_LATER and SL32_POWER_HOLY_POWER then
+			powerType = SL32_POWER_HOLY_POWER
+			numPower = SL32_UnitPower("player", powerType)
 		end
-	elseif RC32className == "Monk" then
-		if RC32_IS_MOP_OR_LATER and RC32_POWER_CHI then
-			powerType = RC32_POWER_CHI
-			numPower = RC32_UnitPower("player", powerType)
+	elseif SL32className == "Monk" then
+		if SL32_IS_MOP_OR_LATER and SL32_POWER_CHI then
+			powerType = SL32_POWER_CHI
+			numPower = SL32_UnitPower("player", powerType)
 		end
-	elseif RC32className == "Rogue" or RC32className == "Druid" then
-		numPower = RC32_GetComboPoints()
+	elseif SL32className == "Rogue" or SL32className == "Druid" then
+		numPower = SL32_GetComboPoints()
 		segmentedPowerTracker:UpdateSegments(numPower)
 		return
-	elseif RC32className == "Priest" then
-		if RC32_IS_CATA_OR_LATER and RC32_POWER_SHADOW_ORBS then
-			powerType = RC32_POWER_SHADOW_ORBS
-			numPower = RC32_UnitPower("player", powerType)
+	elseif SL32className == "Priest" then
+		if SL32_IS_CATA_OR_LATER and SL32_POWER_SHADOW_ORBS then
+			powerType = SL32_POWER_SHADOW_ORBS
+			numPower = SL32_UnitPower("player", powerType)
 		end
-	elseif RC32className == "Shaman" then
-		if RC32_IS_MOP_OR_LATER then
+	elseif SL32className == "Shaman" then
+		if SL32_IS_MOP_OR_LATER then
 			powerType = 11  -- Maelstrom
-			numPower = RC32_UnitPower("player", powerType)
+			numPower = SL32_UnitPower("player", powerType)
 		end
 	end
 	
@@ -1527,14 +1565,14 @@ function RC32MonitorSegmentedPowers(frame)
 end
 
 local function createPowerFrame(file,orb,name,offsetX,offsetY,height,width)
-	local powerFrame = CreateFrame("Frame","RC32"..name,orb)
+	local powerFrame = CreateFrame("Frame","SL32"..name,orb)
 	powerFrame:SetFrameStrata("BACKGROUND")
 	powerFrame:SetPoint("CENTER",offsetX,offsetY)
 	powerFrame:SetHeight(height)
 	powerFrame:SetWidth(width)
 	
 	--gradient backdrop
-	powerFrame.backDrop = CreateFrame("Frame","RC32"..name.."Backdrop",powerFrame)
+	powerFrame.backDrop = CreateFrame("Frame","SL32"..name.."Backdrop",powerFrame)
 	powerFrame.backDrop:SetAllPoints(true)
 	powerFrame.backDrop.backTexture = powerFrame.backDrop:CreateTexture(nil,"BACKGROUND")
 	powerFrame.backDrop.backTexture:SetTexture(images.."d32_powerFrame_backdrop.tga")
@@ -1543,7 +1581,7 @@ local function createPowerFrame(file,orb,name,offsetX,offsetY,height,width)
 	--shadowed frame, colorizable
 	powerFrame.texture = powerFrame.backDrop:CreateTexture(nil,"OVERLAY")
 	powerFrame.texture:SetTexture(file)
-	local orbColor = RC32CharacterData and RC32CharacterData.healthOrb and RC32CharacterData.healthOrb.orbColor
+	local orbColor = SL32CharacterData and SL32CharacterData.healthOrb and SL32CharacterData.healthOrb.orbColor
 	if orbColor then
 		powerFrame.texture:SetVertexColor(orbColor.r or 1, orbColor.g or 1, orbColor.b or 1, orbColor.a or 1)
 	else
@@ -1558,7 +1596,7 @@ local function createPowerFrame(file,orb,name,offsetX,offsetY,height,width)
 	
 	--text
 	powerFrame.text = powerFrame.fontHolder:CreateFontString(nil,"OVERLAY")
-	local fontPath = (RC32CharacterData and RC32CharacterData.font) or "Fonts\\FRIZQT__.TTF"
+	local fontPath = (SL32CharacterData and SL32CharacterData.font) or "Fonts\\FRIZQT__.TTF"
 	powerFrame.text:SetFont(fontPath,29,"THINOUTLINE")
 	powerFrame.text:SetPoint("CENTER",0,1)
 	if orbColor then
@@ -1589,7 +1627,7 @@ local function createPowerFrame(file,orb,name,offsetX,offsetY,height,width)
 	
 	
 	--updates and wh
-	powerFrame:SetScript("OnUpdate",RC32MonitorPowers)
+	powerFrame:SetScript("OnUpdate",SL32MonitorPowers)
 	powerFrame:Show()
 	
 	return powerFrame
@@ -1597,19 +1635,19 @@ end
 
 
 function checkPetFontPlacement()
-	if RC32CharacterData.petOrb.showValue and RC32CharacterData.petOrb.showPercentage then
+	if SL32CharacterData.petOrb.showValue and SL32CharacterData.petOrb.showPercentage then
 		petOrb.font3:SetPoint("CENTER",-20,-8)
 		petOrb.font4:SetPoint("CENTER",20,-8)
 		petOrb.font1:SetPoint("CENTER",-20,5)
 		petOrb.font2:SetPoint("CENTER",20,5)
-		petOrb.font3:SetFont(RC32CharacterData.font,9,"THINOUTLINE")
-		petOrb.font4:SetFont(RC32CharacterData.font,9,"THINOUTLINE")
-	elseif RC32CharacterData.petOrb.showValue and not RC32CharacterData.petOrb.showPercentage then
+		petOrb.font3:SetFont(SL32CharacterData.font,9,"THINOUTLINE")
+		petOrb.font4:SetFont(SL32CharacterData.font,9,"THINOUTLINE")
+	elseif SL32CharacterData.petOrb.showValue and not SL32CharacterData.petOrb.showPercentage then
 		petOrb.font3:SetPoint("CENTER",-20,0)
 		petOrb.font4:SetPoint("CENTER",20,0)
-		petOrb.font3:SetFont(RC32CharacterData.font,11 * petOrb:GetScale(),"THINOUTLINE")
-		petOrb.font4:SetFont(RC32CharacterData.font,11 * petOrb:GetScale(),"THINOUTLINE")
-	elseif not RC32CharacterData.petOrb.showValue and RC32CharacterData.petOrb.showPercentage then
+		petOrb.font3:SetFont(SL32CharacterData.font,11 * petOrb:GetScale(),"THINOUTLINE")
+		petOrb.font4:SetFont(SL32CharacterData.font,11 * petOrb:GetScale(),"THINOUTLINE")
+	elseif not SL32CharacterData.petOrb.showValue and SL32CharacterData.petOrb.showPercentage then
 		petOrb.font1:SetPoint("CENTER",-20,0)
 		petOrb.font2:SetPoint("CENTER",20,0)
 	end
@@ -1619,16 +1657,16 @@ function setOrbFontPlacement(orb,orbData)
 	orb.font1:Show()
 	orb.font2:Show()
 	if orbData.font1.show and orbData.font2.show then
-		orb.font1:SetFont(RC32CharacterData.font,28,"THINOUTLINE")
-		orb.font2:SetFont(RC32CharacterData.font,16,"THINOUTLINE")
+		orb.font1:SetFont(SL32CharacterData.font,28,"THINOUTLINE")
+		orb.font2:SetFont(SL32CharacterData.font,16,"THINOUTLINE")
 		orb.font1:SetPoint("CENTER",0,15)
 		orb.font2:SetPoint("CENTER",0,-5)
 	elseif orbData.font1.show and not orbData.font2.show then
-		orb.font1:SetFont(RC32CharacterData.font,28,"THINOUTLINE")
+		orb.font1:SetFont(SL32CharacterData.font,28,"THINOUTLINE")
 		orb.font1:SetPoint("CENTER",0,0)
 		orb.font2:Hide()
 	elseif orbData.font2.show and not orbData.font1.show then
-		orb.font2:SetFont(RC32CharacterData.font,25,"THINOUTLINE")
+		orb.font2:SetFont(SL32CharacterData.font,25,"THINOUTLINE")
 		orb.font2:SetPoint("CENTER",0,0)
 		orb.font1:Hide()
 	else
@@ -1640,17 +1678,17 @@ end
 function checkXMLOrbFontPlacement()
 	xmlOrbDisplayFrame2.orb.font1:Show()
 	xmlOrbDisplayFrame2.orb.font2:Show()
-	if RC32OrbPercentageCheckBox:GetChecked() and RC32OrbValueCheckBox:GetChecked() then
-		xmlOrbDisplayFrame2.orb.font1:SetFont(RC32CharacterData.font,28,"THINOUTLINE")
-		xmlOrbDisplayFrame2.orb.font2:SetFont(RC32CharacterData.font,16,"THINOUTLINE")
+	if SL32OrbPercentageCheckBox:GetChecked() and SL32OrbValueCheckBox:GetChecked() then
+		xmlOrbDisplayFrame2.orb.font1:SetFont(SL32CharacterData.font,28,"THINOUTLINE")
+		xmlOrbDisplayFrame2.orb.font2:SetFont(SL32CharacterData.font,16,"THINOUTLINE")
 		xmlOrbDisplayFrame2.orb.font1:SetPoint("CENTER",0,15)
 		xmlOrbDisplayFrame2.orb.font2:SetPoint("CENTER",0,-5)
-	elseif RC32OrbPercentageCheckBox:GetChecked() and not RC32OrbValueCheckBox:GetChecked() then
-		xmlOrbDisplayFrame2.orb.font1:SetFont(RC32CharacterData.font,32,"THINOUTLINE")
+	elseif SL32OrbPercentageCheckBox:GetChecked() and not SL32OrbValueCheckBox:GetChecked() then
+		xmlOrbDisplayFrame2.orb.font1:SetFont(SL32CharacterData.font,32,"THINOUTLINE")
 		xmlOrbDisplayFrame2.orb.font1:SetPoint("CENTER",0,0)
 		xmlOrbDisplayFrame2.orb.font2:Hide()
-	elseif RC32OrbValueCheckBox:GetChecked() and not RC32OrbPercentageCheckBox:GetChecked() then
-		xmlOrbDisplayFrame2.orb.font2:SetFont(RC32CharacterData.font,32,"THINOUTLINE")
+	elseif SL32OrbValueCheckBox:GetChecked() and not SL32OrbPercentageCheckBox:GetChecked() then
+		xmlOrbDisplayFrame2.orb.font2:SetFont(SL32CharacterData.font,32,"THINOUTLINE")
 		xmlOrbDisplayFrame2.orb.font2:SetPoint("CENTER",0,0)
 		xmlOrbDisplayFrame2.orb.font1:Hide()
 	else
@@ -1660,36 +1698,36 @@ function checkXMLOrbFontPlacement()
 end
 
 function resetXMLTextBoxes()
-	RC32OrbPercentageCheckBox:SetChecked(CommitButton.orbData.font1.show)
-	RC32OrbValueCheckBox:SetChecked(CommitButton.orbData.font2.show)
+	SL32OrbPercentageCheckBox:SetChecked(CommitButton.orbData.font1.show)
+	SL32OrbValueCheckBox:SetChecked(CommitButton.orbData.font2.show)
 end
 
 local function checkDefaultsFromMemory()
-	if not RC32CharacterData.healthOrb then RC32CharacterData.healthOrb = defaultsTable.healthOrb end
-	if not RC32CharacterData.healthOrb.textures then RC32CharacterData.healthOrb.textures = defaultTextures.healthOrb end
-	if not RC32CharacterData.healthOrb.textures.fill then RC32CharacterData.healthOrb.textures.fill = defaultTextures.healthOrb.fill end
-	if not RC32CharacterData.healthOrb.textures.rotation then RC32CharacterData.healthOrb.textures.rotation = defaultTextures.healthOrb.rotation end
-	if RC32CharacterData.healthOrb.font1.show == nil then RC32CharacterData.healthOrb.font1.show = defaultsTable.healthOrb.font1.show end
-	if RC32CharacterData.healthOrb.font2.show == nil then RC32CharacterData.healthOrb.font2.show = defaultsTable.healthOrb.font2.show end
-	if not RC32CharacterData.healthOrb.formatting then RC32CharacterData.healthOrb.formatting = defaultsTable.healthOrb.formatting end
-	if not RC32CharacterData.manaOrb then RC32CharacterData.manaOrb = defaultsTable.manaOrb end
-	if not RC32CharacterData.manaOrb.textures then RC32CharacterData.manaOrb.textures = defaultTextures.manaOrb end
-	if not RC32CharacterData.manaOrb.textures.fill then RC32CharacterData.manaOrb.textures.fill = defaultTextures.manaOrb.fill end
-	if not RC32CharacterData.manaOrb.textures.rotation then RC32CharacterData.manaOrb.textures.rotation = defaultTextures.manaOrb.rotation end
-	if RC32CharacterData.manaOrb.font1.show == nil then RC32CharacterData.manaOrb.font1.show = defaultsTable.manaOrb.font1.show end
-	if RC32CharacterData.manaOrb.font2.show == nil then RC32CharacterData.manaOrb.font2.show = defaultsTable.manaOrb.font2.show end
-	if not RC32CharacterData.manaOrb.formatting then RC32CharacterData.manaOrb.formatting = defaultsTable.manaOrb.formatting end
-	if not RC32CharacterData.druidColors then RC32CharacterData.druidColors = defaultsTable.druidColors end
-	if not RC32CharacterData.combat then RC32CharacterData.combat = defaultsTable.combat end
-	if not RC32CharacterData.combat.galaxy then RC32CharacterData.combat.galaxy = defaultsTable.combat.galaxy end
-	if not RC32CharacterData.values then RC32CharacterData.values = defaultsTable.values  end
-	if not RC32CharacterData.artwork then RC32CharacterData.artwork = defaultsTable.artwork end
-	if not RC32CharacterData.font then RC32CharacterData.font = defaultsTable.font end
-	if not RC32CharacterData.petOrb then RC32CharacterData.petOrb = defaultsTable.petOrb end
-	if not RC32CharacterData.petOrb.scale then RC32CharacterData.petOrb.scale = defaultsTable.petOrb.scale end
-	if not RC32CharacterData.powerFrame then RC32CharacterData.powerFrame = defaultsTable.powerFrame end
-	if RC32CharacterData.powerFrame.maxStackSound == nil then RC32CharacterData.powerFrame.maxStackSound = defaultsTable.powerFrame.maxStackSound end
-	if not RC32CharacterData.defaultPlayerFrame then RC32CharacterData.defaultPlayerFrame = defaultsTable.defaultPlayerFrame end
+	if not SL32CharacterData.healthOrb then SL32CharacterData.healthOrb = defaultsTable.healthOrb end
+	if not SL32CharacterData.healthOrb.textures then SL32CharacterData.healthOrb.textures = defaultTextures.healthOrb end
+	if not SL32CharacterData.healthOrb.textures.fill then SL32CharacterData.healthOrb.textures.fill = defaultTextures.healthOrb.fill end
+	if not SL32CharacterData.healthOrb.textures.rotation then SL32CharacterData.healthOrb.textures.rotation = defaultTextures.healthOrb.rotation end
+	if SL32CharacterData.healthOrb.font1.show == nil then SL32CharacterData.healthOrb.font1.show = defaultsTable.healthOrb.font1.show end
+	if SL32CharacterData.healthOrb.font2.show == nil then SL32CharacterData.healthOrb.font2.show = defaultsTable.healthOrb.font2.show end
+	if not SL32CharacterData.healthOrb.formatting then SL32CharacterData.healthOrb.formatting = defaultsTable.healthOrb.formatting end
+	if not SL32CharacterData.manaOrb then SL32CharacterData.manaOrb = defaultsTable.manaOrb end
+	if not SL32CharacterData.manaOrb.textures then SL32CharacterData.manaOrb.textures = defaultTextures.manaOrb end
+	if not SL32CharacterData.manaOrb.textures.fill then SL32CharacterData.manaOrb.textures.fill = defaultTextures.manaOrb.fill end
+	if not SL32CharacterData.manaOrb.textures.rotation then SL32CharacterData.manaOrb.textures.rotation = defaultTextures.manaOrb.rotation end
+	if SL32CharacterData.manaOrb.font1.show == nil then SL32CharacterData.manaOrb.font1.show = defaultsTable.manaOrb.font1.show end
+	if SL32CharacterData.manaOrb.font2.show == nil then SL32CharacterData.manaOrb.font2.show = defaultsTable.manaOrb.font2.show end
+	if not SL32CharacterData.manaOrb.formatting then SL32CharacterData.manaOrb.formatting = defaultsTable.manaOrb.formatting end
+	if not SL32CharacterData.druidColors then SL32CharacterData.druidColors = defaultsTable.druidColors end
+	if not SL32CharacterData.combat then SL32CharacterData.combat = defaultsTable.combat end
+	if not SL32CharacterData.combat.galaxy then SL32CharacterData.combat.galaxy = defaultsTable.combat.galaxy end
+	if not SL32CharacterData.values then SL32CharacterData.values = defaultsTable.values  end
+	if not SL32CharacterData.artwork then SL32CharacterData.artwork = defaultsTable.artwork end
+	if not SL32CharacterData.font then SL32CharacterData.font = defaultsTable.font end
+	if not SL32CharacterData.petOrb then SL32CharacterData.petOrb = defaultsTable.petOrb end
+	if not SL32CharacterData.petOrb.scale then SL32CharacterData.petOrb.scale = defaultsTable.petOrb.scale end
+	if not SL32CharacterData.powerFrame then SL32CharacterData.powerFrame = defaultsTable.powerFrame end
+	if SL32CharacterData.powerFrame.maxStackSound == nil then SL32CharacterData.powerFrame.maxStackSound = defaultsTable.powerFrame.maxStackSound end
+	if not SL32CharacterData.defaultPlayerFrame then SL32CharacterData.defaultPlayerFrame = defaultsTable.defaultPlayerFrame end
 	
 	-- Validate/repair color tables (fix any missing r, g, b, a components)
 	local function validateColorTable(colorTable, defaultColor)
@@ -1702,76 +1740,76 @@ local function checkDefaultsFromMemory()
 	end
 	
 	-- Repair health orb colors
-	RC32CharacterData.healthOrb.orbColor = validateColorTable(RC32CharacterData.healthOrb.orbColor, defaultsTable.healthOrb.orbColor)
-	RC32CharacterData.healthOrb.galaxy = validateColorTable(RC32CharacterData.healthOrb.galaxy, defaultsTable.healthOrb.galaxy)
-	RC32CharacterData.healthOrb.font1 = validateColorTable(RC32CharacterData.healthOrb.font1, defaultsTable.healthOrb.font1)
-	RC32CharacterData.healthOrb.font2 = validateColorTable(RC32CharacterData.healthOrb.font2, defaultsTable.healthOrb.font2)
+	SL32CharacterData.healthOrb.orbColor = validateColorTable(SL32CharacterData.healthOrb.orbColor, defaultsTable.healthOrb.orbColor)
+	SL32CharacterData.healthOrb.galaxy = validateColorTable(SL32CharacterData.healthOrb.galaxy, defaultsTable.healthOrb.galaxy)
+	SL32CharacterData.healthOrb.font1 = validateColorTable(SL32CharacterData.healthOrb.font1, defaultsTable.healthOrb.font1)
+	SL32CharacterData.healthOrb.font2 = validateColorTable(SL32CharacterData.healthOrb.font2, defaultsTable.healthOrb.font2)
 	
 	-- Repair mana orb colors
-	RC32CharacterData.manaOrb.orbColor = validateColorTable(RC32CharacterData.manaOrb.orbColor, defaultsTable.manaOrb.orbColor)
-	RC32CharacterData.manaOrb.galaxy = validateColorTable(RC32CharacterData.manaOrb.galaxy, defaultsTable.manaOrb.galaxy)
-	RC32CharacterData.manaOrb.font1 = validateColorTable(RC32CharacterData.manaOrb.font1, defaultsTable.manaOrb.font1)
-	RC32CharacterData.manaOrb.font2 = validateColorTable(RC32CharacterData.manaOrb.font2, defaultsTable.manaOrb.font2)
+	SL32CharacterData.manaOrb.orbColor = validateColorTable(SL32CharacterData.manaOrb.orbColor, defaultsTable.manaOrb.orbColor)
+	SL32CharacterData.manaOrb.galaxy = validateColorTable(SL32CharacterData.manaOrb.galaxy, defaultsTable.manaOrb.galaxy)
+	SL32CharacterData.manaOrb.font1 = validateColorTable(SL32CharacterData.manaOrb.font1, defaultsTable.manaOrb.font1)
+	SL32CharacterData.manaOrb.font2 = validateColorTable(SL32CharacterData.manaOrb.font2, defaultsTable.manaOrb.font2)
 	
 	-- Repair combat colors
-	if RC32CharacterData.combat then
-		RC32CharacterData.combat.orbColor = validateColorTable(RC32CharacterData.combat.orbColor, defaultsTable.combat.orbColor)
-		RC32CharacterData.combat.galaxy = validateColorTable(RC32CharacterData.combat.galaxy, defaultsTable.combat.galaxy)
-		RC32CharacterData.combat.font1 = validateColorTable(RC32CharacterData.combat.font1, defaultsTable.combat.font1)
-		RC32CharacterData.combat.font2 = validateColorTable(RC32CharacterData.combat.font2, defaultsTable.combat.font2)
+	if SL32CharacterData.combat then
+		SL32CharacterData.combat.orbColor = validateColorTable(SL32CharacterData.combat.orbColor, defaultsTable.combat.orbColor)
+		SL32CharacterData.combat.galaxy = validateColorTable(SL32CharacterData.combat.galaxy, defaultsTable.combat.galaxy)
+		SL32CharacterData.combat.font1 = validateColorTable(SL32CharacterData.combat.font1, defaultsTable.combat.font1)
+		SL32CharacterData.combat.font2 = validateColorTable(SL32CharacterData.combat.font2, defaultsTable.combat.font2)
 	end
 	
 	-- Initialize account-wide data for power tracker rotation
-	if not RC32AccountData then RC32AccountData = {} end
-	if RC32AccountData.powerTrackerRotation == nil then RC32AccountData.powerTrackerRotation = 270 end
-	if RC32AccountData.powerTrackerScale == nil then RC32AccountData.powerTrackerScale = 100 end
+	if not SL32AccountData then SL32AccountData = {} end
+	if SL32AccountData.powerTrackerRotation == nil then SL32AccountData.powerTrackerRotation = 270 end
+	if SL32AccountData.powerTrackerScale == nil then SL32AccountData.powerTrackerScale = 100 end
 	
 	
-	if TruncatedValuesCheckButton then TruncatedValuesCheckButton:SetChecked(RC32CharacterData.values.formatted) end
-	if ShowArtworkCheckButton then ShowArtworkCheckButton:SetChecked(RC32CharacterData.artwork.show) end
-	if UsePetOrbCheckButton then UsePetOrbCheckButton:SetChecked(RC32CharacterData.petOrb.enabled) end
-	if TrackCombatCheckButton then TrackCombatCheckButton:SetChecked(RC32CharacterData.combat.enabled) end
-	if ShowPetOrbPercentagesCheckButton then ShowPetOrbPercentagesCheckButton:SetChecked(RC32CharacterData.petOrb.showPercentage) end
-	if ShowPetOrbValuesCheckButton then ShowPetOrbValuesCheckButton:SetChecked(RC32CharacterData.petOrb.showValue) end
-	if UsePowerTrackerCheckButton then UsePowerTrackerCheckButton:SetChecked(RC32CharacterData.powerFrame.show) end
-	if ShowBlizzPlayerFrameCheckButton then ShowBlizzPlayerFrameCheckButton:SetChecked(RC32CharacterData.defaultPlayerFrame.show) end
+	if TruncatedValuesCheckButton then TruncatedValuesCheckButton:SetChecked(SL32CharacterData.values.formatted) end
+	if ShowArtworkCheckButton then ShowArtworkCheckButton:SetChecked(SL32CharacterData.artwork.show) end
+	if UsePetOrbCheckButton then UsePetOrbCheckButton:SetChecked(SL32CharacterData.petOrb.enabled) end
+	if TrackCombatCheckButton then TrackCombatCheckButton:SetChecked(SL32CharacterData.combat.enabled) end
+	if ShowPetOrbPercentagesCheckButton then ShowPetOrbPercentagesCheckButton:SetChecked(SL32CharacterData.petOrb.showPercentage) end
+	if ShowPetOrbValuesCheckButton then ShowPetOrbValuesCheckButton:SetChecked(SL32CharacterData.petOrb.showValue) end
+	if UsePowerTrackerCheckButton then UsePowerTrackerCheckButton:SetChecked(SL32CharacterData.powerFrame.show) end
+	if ShowBlizzPlayerFrameCheckButton then ShowBlizzPlayerFrameCheckButton:SetChecked(SL32CharacterData.defaultPlayerFrame.show) end
 		
-	if not RC32CharacterData.petOrb.showValue then
+	if not SL32CharacterData.petOrb.showValue then
 		petOrb.font3:Hide()
 		petOrb.font4:Hide()
 	end
-	if not RC32CharacterData.petOrb.showPercentage then
+	if not SL32CharacterData.petOrb.showPercentage then
 		petOrb.font1:Hide()
 		petOrb.font2:Hide()
 	end
 	checkPetFontPlacement()
 	
-	if not RC32CharacterData.petOrb.enabled then
+	if not SL32CharacterData.petOrb.enabled then
 		if petOrb.secure then
-			RC32_UnregisterUnitWatch(petOrb.secure)
+			SL32_UnregisterUnitWatch(petOrb.secure)
 			petOrb.secure:Hide()
 		end
 		petOrb:Hide()
 	end
-	if not RC32CharacterData.artwork.show then
+	if not SL32CharacterData.artwork.show then
 		angelFrame:Hide()
 		demonFrame:Hide()
 	end
 	
 	-- Handle segmented power tracker visibility
 	if segmentedPowerTracker then
-		if not RC32CharacterData.powerFrame.show then
+		if not SL32CharacterData.powerFrame.show then
 			segmentedPowerTracker:SetScript("OnUpdate", nil)
 			segmentedPowerTracker:Hide()
 		else
-			segmentedPowerTracker:SetScript("OnUpdate", RC32MonitorSegmentedPowers)
+			segmentedPowerTracker:SetScript("OnUpdate", SL32MonitorSegmentedPowers)
 			segmentedPowerTracker:Show()
 		end
 	end
 	
 	-- Legacy powerFrame handling (if still exists)
 	if powerFrame then
-		if not RC32CharacterData.powerFrame.show then
+		if not SL32CharacterData.powerFrame.show then
 			powerFrame:SetScript("OnUpdate",nil)
 			powerFrame:Hide()
 		end
@@ -1793,32 +1831,32 @@ end
 
 local function updateColorsFromMemory()
 	--health orb fill, galaxy and font colors - USE SAVED COLORS
-	local r,g,b,a = safeColor(RC32CharacterData.healthOrb.orbColor)
+	local r,g,b,a = safeColor(SL32CharacterData.healthOrb.orbColor)
 	healthOrb.filling:SetVertexColor(r,g,b,a)
 	setStatusBarColor(healthOrb.fillingBar, r, g, b, a)
-	r,g,b,a = safeColor(RC32CharacterData.healthOrb.galaxy)
+	r,g,b,a = safeColor(SL32CharacterData.healthOrb.galaxy)
 	healthOrb.galaxy1.texture:SetVertexColor(r,g,b,a)
 	healthOrb.galaxy2.texture:SetVertexColor(r,g,b,a)
 	healthOrb.galaxy3.texture:SetVertexColor(r,g,b,a)
-	r,g,b,a = safeColor(RC32CharacterData.healthOrb.font1)
+	r,g,b,a = safeColor(SL32CharacterData.healthOrb.font1)
 	healthOrb.font1:SetTextColor(r,g,b,a)
-	r,g,b,a = safeColor(RC32CharacterData.healthOrb.font2)
+	r,g,b,a = safeColor(SL32CharacterData.healthOrb.font2)
 	healthOrb.font2:SetTextColor(r,g,b,a)
-	healthOrb:SetScale(RC32CharacterData.healthOrb.scale or 1)
+	healthOrb:SetScale(SL32CharacterData.healthOrb.scale or 1)
 
 	--mana orb fill, galaxy and font colors
-	r,g,b,a = safeColor(RC32CharacterData.manaOrb.orbColor)
+	r,g,b,a = safeColor(SL32CharacterData.manaOrb.orbColor)
 	manaOrb.filling:SetVertexColor(r,g,b,a)
 	setStatusBarColor(manaOrb.fillingBar, r, g, b, a)
-	r,g,b,a = safeColor(RC32CharacterData.manaOrb.galaxy)
+	r,g,b,a = safeColor(SL32CharacterData.manaOrb.galaxy)
 	manaOrb.galaxy1.texture:SetVertexColor(r,g,b,a)
 	manaOrb.galaxy2.texture:SetVertexColor(r,g,b,a)
 	manaOrb.galaxy3.texture:SetVertexColor(r,g,b,a)
-	r,g,b,a = safeColor(RC32CharacterData.manaOrb.font1)
+	r,g,b,a = safeColor(SL32CharacterData.manaOrb.font1)
 	manaOrb.font1:SetTextColor(r,g,b,a)
-	r,g,b,a = safeColor(RC32CharacterData.manaOrb.font2)
+	r,g,b,a = safeColor(SL32CharacterData.manaOrb.font2)
 	manaOrb.font2:SetTextColor(r,g,b,a)
-	manaOrb:SetScale(RC32CharacterData.manaOrb.scale or 1)
+	manaOrb:SetScale(SL32CharacterData.manaOrb.scale or 1)
 	
 	local pr, pg, pb, pa = healthOrb.filling:GetVertexColor()
 	petOrb.filling1:SetVertexColor(pr or 1, pg or 1, pb or 1, pa or 1)
@@ -1830,63 +1868,63 @@ local function updateColorsFromMemory()
 	petOrb.font2:SetTextColor(manaOrb.font1:GetTextColor())
 	petOrb.font3:SetTextColor(healthOrb.font2:GetTextColor())
 	petOrb.font4:SetTextColor(manaOrb.font2:GetTextColor())
-	petOrb:SetScale(RC32CharacterData.petOrb.scale)
+	petOrb:SetScale(SL32CharacterData.petOrb.scale)
 	
 	-- Update power tracker to class color and apply saved settings
 	if segmentedPowerTracker then
 		segmentedPowerTracker:UpdateColors()
 		-- Apply saved rotation from account-wide data
-		local savedRotation = RC32AccountData and RC32AccountData.powerTrackerRotation or 270
+		local savedRotation = SL32AccountData and SL32AccountData.powerTrackerRotation or 270
 		segmentedPowerTracker:SetRotation(savedRotation)
 		-- Apply saved scale from account-wide data
-		local savedScale = RC32AccountData and RC32AccountData.powerTrackerScale or 75
+		local savedScale = SL32AccountData and SL32AccountData.powerTrackerScale or 75
 		segmentedPowerTracker:SetScale(savedScale / 100)
 	end
 	
 	-- Initialize scale sliders with saved values (inverted for vertical sliders)
-	if RC32HealthScaleSlider then
-		RC32HealthScaleSlider:SetValue(225 - (RC32CharacterData.healthOrb.scale) * 100)
-		if RC32HealthScaleValue then
-			RC32HealthScaleValue:SetText(math.floor((RC32CharacterData.healthOrb.scale) * 100) .. "%")
+	if SL32HealthScaleSlider then
+		SL32HealthScaleSlider:SetValue(225 - (SL32CharacterData.healthOrb.scale) * 100)
+		if SL32HealthScaleValue then
+			SL32HealthScaleValue:SetText(math.floor((SL32CharacterData.healthOrb.scale) * 100) .. "%")
 		end
 	end
-	if RC32ManaScaleSlider then
-		RC32ManaScaleSlider:SetValue(225 - (RC32CharacterData.manaOrb.scale) * 100)
-		if RC32ManaScaleValue then
-			RC32ManaScaleValue:SetText(math.floor((RC32CharacterData.manaOrb.scale) * 100) .. "%")
+	if SL32ManaScaleSlider then
+		SL32ManaScaleSlider:SetValue(225 - (SL32CharacterData.manaOrb.scale) * 100)
+		if SL32ManaScaleValue then
+			SL32ManaScaleValue:SetText(math.floor((SL32CharacterData.manaOrb.scale) * 100) .. "%")
 		end
 	end
-	if RC32PetScaleSlider then
-		RC32PetScaleSlider:SetValue(225 - (RC32CharacterData.petOrb.scale) * 100)
-		if RC32PetScaleValue then
-			RC32PetScaleValue:SetText(math.floor((RC32CharacterData.petOrb.scale) * 100) .. "%")
+	if SL32PetScaleSlider then
+		SL32PetScaleSlider:SetValue(225 - (SL32CharacterData.petOrb.scale) * 100)
+		if SL32PetScaleValue then
+			SL32PetScaleValue:SetText(math.floor((SL32CharacterData.petOrb.scale) * 100) .. "%")
 		end
 	end
 	-- Initialize power tracker rotation slider (convert from actual rotation to slider value)
-	if RC32PowerTrackerRotationSlider then
-		local savedRotation = RC32AccountData and RC32AccountData.powerTrackerRotation or 270
+	if SL32PowerTrackerRotationSlider then
+		local savedRotation = SL32AccountData and SL32AccountData.powerTrackerRotation or 270
 		-- Convert rotation back to slider value: slider = rotation - 270 (wrapped)
 		local sliderVal = savedRotation - 270
 		if sliderVal < 0 then sliderVal = sliderVal + 360 end
-		RC32PowerTrackerRotationSlider:SetValue(sliderVal)
-		if RC32RotateValue then
-			RC32RotateValue:SetText(sliderVal .. "°")
+		SL32PowerTrackerRotationSlider:SetValue(sliderVal)
+		if SL32RotateValue then
+			SL32RotateValue:SetText(sliderVal .. "°")
 		end
 	end
 	-- Initialize power tracker scale slider
-	if RC32PowerTrackerScaleSlider then
-		local savedScale = RC32AccountData and RC32AccountData.powerTrackerScale or 100
-		RC32PowerTrackerScaleSlider:SetValue(225 - savedScale)
-		if RC32PowerTrackerScaleValue then
-			RC32PowerTrackerScaleValue:SetText(savedScale .. "%")
+	if SL32PowerTrackerScaleSlider then
+		local savedScale = SL32AccountData and SL32AccountData.powerTrackerScale or 100
+		SL32PowerTrackerScaleSlider:SetValue(225 - savedScale)
+		if SL32PowerTrackerScaleValue then
+			SL32PowerTrackerScaleValue:SetText(savedScale .. "%")
 		end
 	end
 
-	setOrbFontPlacement(healthOrb,RC32CharacterData.healthOrb)
-	setOrbFontPlacement(manaOrb,RC32CharacterData.manaOrb)
+	setOrbFontPlacement(healthOrb,SL32CharacterData.healthOrb)
+	setOrbFontPlacement(manaOrb,SL32CharacterData.manaOrb)
 end
 
-function RC32UpdateOrbColor(orb,orbColor,galaxyColor,font1Color,font2Color)
+function SL32UpdateOrbColor(orb,orbColor,galaxyColor,font1Color,font2Color)
 	local r, g, b, a = safeColor(orbColor)
 	orb.filling:SetVertexColor(r, g, b, a)
 	setStatusBarColor(orb.fillingBar, r, g, b, a)
@@ -1934,27 +1972,27 @@ end
 
 local function checkShapeShiftInfo()
 		local form = GetShapeshiftForm()
-		local druidFormTable = RC32CharacterData.manaOrb
+		local druidFormTable = SL32CharacterData.manaOrb
 		local changeOcurred = true
 		if form == 1 then
-			druidFormTable = RC32CharacterData.druidColors.bear
-			previousPowerValue = RC32_UnitPower("player", RC32_POWER_RAGE)
+			druidFormTable = SL32CharacterData.druidColors.bear
+			previousPowerValue = SL32_UnitPower("player", SL32_POWER_RAGE)
 		elseif form == 3 then
-			druidFormTable = RC32CharacterData.druidColors.cat
-			previousPowerValue = RC32_UnitPower("player", RC32_POWER_ENERGY)
+			druidFormTable = SL32CharacterData.druidColors.cat
+			previousPowerValue = SL32_UnitPower("player", SL32_POWER_ENERGY)
 		elseif form == 5 then
 			changeOcurred = false
 		elseif form == 0 then
-			druidFormTable = RC32CharacterData.manaOrb
-			previousPowerValue = RC32_UnitPower("player", RC32_POWER_MANA)
+			druidFormTable = SL32CharacterData.manaOrb
+			previousPowerValue = SL32_UnitPower("player", SL32_POWER_MANA)
 		end
-		RC32UpdateOrbColor(manaOrb,druidFormTable.orbColor,druidFormTable.galaxy,druidFormTable.font1,druidFormTable.font2)
+		SL32UpdateOrbColor(manaOrb,druidFormTable.orbColor,druidFormTable.galaxy,druidFormTable.font1,druidFormTable.font2)
 end
 
 -- Border Color Functions
-function RC32_SetBorderColor(r, g, b)
+function SL32_SetBorderColor(r, g, b)
 	-- Try multiple ways to access the border texture
-	local border = _G["RC32GUIBorder"]
+	local border = _G["SL32GUIBorder"]
 	if border and border.SetVertexColor then
 		border:SetVertexColor(r, g, b)
 	end
@@ -1962,10 +2000,10 @@ end
 
 local function UpdateOrbTextures()
 	-- Ensure textures exist with fallback defaults
-	local healthFill = (RC32CharacterData.healthOrb.textures and RC32CharacterData.healthOrb.textures.fill) or defaultTextures.healthOrb.fill
-	local healthRotation = (RC32CharacterData.healthOrb.textures and RC32CharacterData.healthOrb.textures.rotation) or defaultTextures.healthOrb.rotation
-	local manaFill = (RC32CharacterData.manaOrb.textures and RC32CharacterData.manaOrb.textures.fill) or defaultTextures.manaOrb.fill
-	local manaRotation = (RC32CharacterData.manaOrb.textures and RC32CharacterData.manaOrb.textures.rotation) or defaultTextures.manaOrb.rotation
+	local healthFill = (SL32CharacterData.healthOrb.textures and SL32CharacterData.healthOrb.textures.fill) or defaultTextures.healthOrb.fill
+	local healthRotation = (SL32CharacterData.healthOrb.textures and SL32CharacterData.healthOrb.textures.rotation) or defaultTextures.healthOrb.rotation
+	local manaFill = (SL32CharacterData.manaOrb.textures and SL32CharacterData.manaOrb.textures.fill) or defaultTextures.manaOrb.fill
+	local manaRotation = (SL32CharacterData.manaOrb.textures and SL32CharacterData.manaOrb.textures.rotation) or defaultTextures.manaOrb.rotation
 	
 	healthOrb.filling:SetTexture(images..healthFill)
 	healthOrb.galaxy1.texture:SetTexture(images..healthRotation.."1.tga")
@@ -1979,12 +2017,12 @@ local function UpdateOrbTextures()
 end
 
 function shouldEnabledCheckboxBeChecked()
-	if CommitButton and RC32OrbEnabledCheckbox then
-		RC32OrbEnabledCheckbox:SetChecked(CommitButton.orbData.enabled)
+	if CommitButton and SL32OrbEnabledCheckbox then
+		SL32OrbEnabledCheckbox:SetChecked(CommitButton.orbData.enabled)
 	end
 end
 
-function RC32ApplyChanges()
+function SL32ApplyChanges()
 	local activeElement = CommitButton.activeElement
 	local r,g,b,a = xmlOrbDisplayFrame2.orb.filling:GetVertexColor()
 	local fillColors = {r=0,g=0,b=0,a=0}
@@ -2007,24 +2045,24 @@ function RC32ApplyChanges()
 	activeElement.font2.r, activeElement.font2.g, activeElement.font2.b, activeElement.font2.a = r,g,b,a
 	
 	-- Update the actual orb being edited with its saved colors
-	RC32UpdateOrbColor(CommitButton.orb, activeElement.orbColor, activeElement.galaxy, activeElement.font1, activeElement.font2)
+	SL32UpdateOrbColor(CommitButton.orb, activeElement.orbColor, activeElement.galaxy, activeElement.font1, activeElement.font2)
 	
 	-- Use stored texture indices from dropdown selections
-	if RC32SelectedFillIndex ~= nil then
-		CommitButton.textureElement.fill = RC32FillTextureNames[RC32SelectedFillIndex]
+	if SL32SelectedFillIndex ~= nil then
+		CommitButton.textureElement.fill = SL32FillTextureNames[SL32SelectedFillIndex]
 	end
-	if RC32SelectedRotationIndex ~= nil then
-		CommitButton.textureElement.rotation = RC32RotationTextureNames[RC32SelectedRotationIndex]
+	if SL32SelectedRotationIndex ~= nil then
+		CommitButton.textureElement.rotation = SL32RotationTextureNames[SL32SelectedRotationIndex]
 	end
 	UpdateOrbTextures()
 
-	if RC32OrbPercentageCheckBox:GetChecked() then
+	if SL32OrbPercentageCheckBox:GetChecked() then
 		CommitButton.orbData.font1.show = true
 	else
 		CommitButton.orbData.font1.show = false
 	end
 
-	if RC32OrbValueCheckBox:GetChecked() then
+	if SL32OrbValueCheckBox:GetChecked() then
 		CommitButton.orbData.font2.show = true
 	else
 		CommitButton.orbData.font2.show = false
@@ -2045,7 +2083,7 @@ function RC32ApplyChanges()
 	petOrb.font4:SetTextColor(manaOrb.font2:GetTextColor())
 end
 
-function RC32ColorPicker(xmlElement)
+function SL32ColorPicker(xmlElement)
 	local r,g,b,a
 	if xmlElement == "Filling" then
 		r,g,b,a = xmlOrbDisplayFrame2.orb.filling:GetVertexColor()
@@ -2067,7 +2105,7 @@ function RC32ColorPicker(xmlElement)
 	ColorPickerFrame:Show()
 end
 
-function RC32ResetToClassColors()
+function SL32ResetToClassColors()
 	-- Get the class colors based on which orb is being edited
 	local classColor
 	local isHealthOrb = (CommitButton.orb == healthOrb)
@@ -2094,8 +2132,8 @@ function UpdateXMLTextures(orb)
 	xmlOrbDisplayFrame2.orb.galaxy3.texture:SetTexture(orb.galaxy3.texture:GetTexture())
 	
 	-- Reset selected texture indices when opening config
-	RC32SelectedFillIndex = nil
-	RC32SelectedRotationIndex = nil
+	SL32SelectedFillIndex = nil
+	SL32SelectedRotationIndex = nil
 	
 	UIDropDownMenu_SetText(FillTexturesDropDown,"Choose one...")
 	UIDropDownMenu_SetText(RotationTexturesDropDown,"Choose one...")
@@ -2116,7 +2154,7 @@ function UpdateXMLText(orb)
 end
 
 function FillXMLTemplate(frame)
-	frame.orb = CreateXMLOrb(xmlOrbDisplayFrame2,"RC32_XMLOrb",150,defaultTextures.healthOrb.fill,defaultTextures.healthOrb.rotation)
+	frame.orb = CreateXMLOrb(xmlOrbDisplayFrame2,"SL32_XMLOrb",150,defaultTextures.healthOrb.fill,defaultTextures.healthOrb.rotation)
 	frame.orb.galaxy1.texture:SetAlpha(0.5)
 	frame.orb.galaxy2.texture:SetAlpha(0.5)
 	frame.orb.galaxy3.texture:SetAlpha(0.5)
@@ -2127,10 +2165,10 @@ end
 function CheckHealthOrbOptionValuesAgainstUIState()
 	local selectedId = UIDropDownMenu_GetSelectedID(HealthOrbOptionsDropDown);
 	if selectedId == 2 then
-		CommitButton.activeElement = RC32CharacterData.combat
+		CommitButton.activeElement = SL32CharacterData.combat
 	elseif selectedId == 1 then
-		CommitButton.activeElement = RC32CharacterData.healthOrb
-		CommitButton.newActiveElement = RC32CharacterData.healthOrb
+		CommitButton.activeElement = SL32CharacterData.healthOrb
+		CommitButton.newActiveElement = SL32CharacterData.healthOrb
 	end
 
 	UpdateXMLColors(
@@ -2141,7 +2179,7 @@ function CheckHealthOrbOptionValuesAgainstUIState()
 end
 
 function InitializeHealthOrbOptionsDropDown()
-	CommitButton.activeElement = RC32CharacterData.healthOrb
+	CommitButton.activeElement = SL32CharacterData.healthOrb
 	local fillOptions = {
 	"Default",
 	"Combat"
@@ -2171,11 +2209,11 @@ end
 function CheckManaOrbOptionValuesAgainstUIState()
 	local selectedId = UIDropDownMenu_GetSelectedID(ManaOrbOptionsDropDown);
 	if selectedId == 3 then
-		CommitButton.activeElement = RC32CharacterData.druidColors.cat
+		CommitButton.activeElement = SL32CharacterData.druidColors.cat
 	elseif selectedId == 2 then
-		CommitButton.activeElement = RC32CharacterData.druidColors.bear
+		CommitButton.activeElement = SL32CharacterData.druidColors.bear
 	elseif selectedId == 1 then
-		CommitButton.activeElement = RC32CharacterData.manaOrb
+		CommitButton.activeElement = SL32CharacterData.manaOrb
 	end
 	UpdateXMLColors(
 		CommitButton.activeElement.orbColor,
@@ -2185,12 +2223,12 @@ function CheckManaOrbOptionValuesAgainstUIState()
 end
 
 function InitializeManaOrbOptionsDropDown()
-	CommitButton.activeElement = RC32CharacterData.manaOrb
+	CommitButton.activeElement = SL32CharacterData.manaOrb
 	local fillOptions2 = {
 		"Default"
 	}
 
-	if RC32className == "Druid" then
+	if SL32className == "Druid" then
 		fillOptions2 = {
 			"Default",
 			"Bear",
@@ -2219,9 +2257,9 @@ function InitializeManaOrbOptionsDropDown()
 end
 
 --alloc the orbs and assign them to the health/mana orb variables, make them both movable from the get-go for testing
-healthOrb = CreateOrb(nil,"RC32_HealthOrb",defaultOrbSize,defaultTextures.healthOrb.fill,defaultTextures.healthOrb.rotation,-250,0,"BOTTOM",monitorHealth)
-manaOrb = CreateOrb(nil,"RC32_ManaOrb",defaultOrbSize,defaultTextures.manaOrb.fill,defaultTextures.manaOrb.rotation,250,0,"BOTTOM",monitorPower)
-petOrb = CreatePetOrb(healthOrb,"RC32_PetOrb",87,-95,70,nil)
+healthOrb = CreateOrb(nil,"SL32_HealthOrb",defaultOrbSize,defaultTextures.healthOrb.fill,defaultTextures.healthOrb.rotation,-250,0,"BOTTOM",monitorHealth)
+manaOrb = CreateOrb(nil,"SL32_ManaOrb",defaultOrbSize,defaultTextures.manaOrb.fill,defaultTextures.manaOrb.rotation,250,0,"BOTTOM",monitorPower)
+petOrb = CreatePetOrb(healthOrb,"SL32_PetOrb",87,-95,70,nil)
 healthOrbSecure = healthOrb.secure
 manaOrbSecure = manaOrb.secure
 petOrbSecure = petOrb.secure
@@ -2235,78 +2273,78 @@ local classPowerSegments = {
 }
 
 -- Add expansion-specific classes/power types
-if RC32_IS_CATA_OR_LATER then
+if SL32_IS_CATA_OR_LATER then
 	classPowerSegments["Paladin"] = 3    -- Holy Power (max 3)
 	classPowerSegments["Warlock"] = 4    -- Soul Shards (max 4)
 	classPowerSegments["Priest"] = 3     -- Shadow Orbs (max 3)
 end
 
-if RC32_IS_MOP_OR_LATER then
+if SL32_IS_MOP_OR_LATER then
 	classPowerSegments["Monk"] = 4       -- Chi (max 4, can be 5 with talent)
 	classPowerSegments["Shaman"] = 5     -- Maelstrom Weapon stacks (max 5)
 end
 
 -- Create segmented power tracker for supported classes
-local numSegments = classPowerSegments[RC32className]
+local numSegments = classPowerSegments[SL32className]
 if numSegments then
 	segmentedPowerTracker = CreateSegmentedPowerTracker(healthOrb, numSegments, defaultOrbSize)
-	segmentedPowerTracker:SetScript("OnUpdate", RC32MonitorSegmentedPowers)
+	segmentedPowerTracker:SetScript("OnUpdate", SL32MonitorSegmentedPowers)
 	-- Show the checkbox and rotation slider for classes that have power tracker
 	if UsePowerTrackerCheckButton then
 		UsePowerTrackerCheckButton:Show()
 	end
-	if RC32PowerTrackerRotationSlider then
-		RC32PowerTrackerRotationSlider:Show()
+	if SL32PowerTrackerRotationSlider then
+		SL32PowerTrackerRotationSlider:Show()
 	end
-	if RC32PowerTrackerRotationSliderBackdrop then
-		RC32PowerTrackerRotationSliderBackdrop:Show()
+	if SL32PowerTrackerRotationSliderBackdrop then
+		SL32PowerTrackerRotationSliderBackdrop:Show()
 	end
-	if RC32PowerTrackerResetButton then
-		RC32PowerTrackerResetButton:Show()
+	if SL32PowerTrackerResetButton then
+		SL32PowerTrackerResetButton:Show()
 	end
-	if RC32PowerTrackerScaleSlider then
-		RC32PowerTrackerScaleSlider:Show()
+	if SL32PowerTrackerScaleSlider then
+		SL32PowerTrackerScaleSlider:Show()
 	end
-	if RC32PowerTrackerScaleSliderBackdrop then
-		RC32PowerTrackerScaleSliderBackdrop:Show()
+	if SL32PowerTrackerScaleSliderBackdrop then
+		SL32PowerTrackerScaleSliderBackdrop:Show()
 	end
-	if RC32PowerTrackerScaleResetButton then
-		RC32PowerTrackerScaleResetButton:Show()
+	if SL32PowerTrackerScaleResetButton then
+		SL32PowerTrackerScaleResetButton:Show()
 	end
-	if RC32MaxStackSoundDropdown then
-		RC32MaxStackSoundDropdown:Show()
+	if SL32MaxStackSoundDropdown then
+		SL32MaxStackSoundDropdown:Show()
 	end
-	if RC32MaxStackSoundLabelFrame then
-		RC32MaxStackSoundLabelFrame:Show()
+	if SL32MaxStackSoundLabelFrame then
+		SL32MaxStackSoundLabelFrame:Show()
 	end
 else
 	-- Hide the checkbox and rotation slider for classes that don't have power tracker
 	if UsePowerTrackerCheckButton then
 		UsePowerTrackerCheckButton:Hide()
 	end
-	if RC32PowerTrackerRotationSlider then
-		RC32PowerTrackerRotationSlider:Hide()
+	if SL32PowerTrackerRotationSlider then
+		SL32PowerTrackerRotationSlider:Hide()
 	end
-	if RC32PowerTrackerRotationSliderBackdrop then
-		RC32PowerTrackerRotationSliderBackdrop:Hide()
+	if SL32PowerTrackerRotationSliderBackdrop then
+		SL32PowerTrackerRotationSliderBackdrop:Hide()
 	end
-	if RC32PowerTrackerResetButton then
-		RC32PowerTrackerResetButton:Hide()
+	if SL32PowerTrackerResetButton then
+		SL32PowerTrackerResetButton:Hide()
 	end
-	if RC32PowerTrackerScaleSlider then
-		RC32PowerTrackerScaleSlider:Hide()
+	if SL32PowerTrackerScaleSlider then
+		SL32PowerTrackerScaleSlider:Hide()
 	end
-	if RC32PowerTrackerScaleSliderBackdrop then
-		RC32PowerTrackerScaleSliderBackdrop:Hide()
+	if SL32PowerTrackerScaleSliderBackdrop then
+		SL32PowerTrackerScaleSliderBackdrop:Hide()
 	end
-	if RC32PowerTrackerScaleResetButton then
-		RC32PowerTrackerScaleResetButton:Hide()
+	if SL32PowerTrackerScaleResetButton then
+		SL32PowerTrackerScaleResetButton:Hide()
 	end
-	if RC32MaxStackSoundDropdown then
-		RC32MaxStackSoundDropdown:Hide()
+	if SL32MaxStackSoundDropdown then
+		SL32MaxStackSoundDropdown:Hide()
 	end
-	if RC32MaxStackSoundLabelFrame then
-		RC32MaxStackSoundLabelFrame:Hide()
+	if SL32MaxStackSoundLabelFrame then
+		SL32MaxStackSoundLabelFrame:Hide()
 	end
 end
 angelFrame = addArtwork(images.."d3_angel2test.tga",manaOrb,"AngelFrame",70,5,160,160)
@@ -2315,7 +2353,7 @@ makeFrameMovable(healthOrb)
 makeFrameMovable(manaOrb)
 makeFrameMovable(petOrb)
 
-local function RC32_UpdatePlayerVitals()
+local function SL32_UpdatePlayerVitals()
 	local unit = (vehicleInUse == 1) and "vehicle" or "player"
 	local rawHealth = UnitHealth(unit)
 	local rawMaxHealth = UnitHealthMax(unit)
@@ -2331,19 +2369,19 @@ local function RC32_UpdatePlayerVitals()
 	local prevPower = lastSafePower
 	local prevMaxPower = lastSafeMaxPower
 
-	local safeHealth = rc32SafeNumber(rawHealth, prevHealth)
-	local safeMaxHealth = rc32SafeNumber(rawMaxHealth, prevMaxHealth)
-	local safePower = rc32SafeNumber(rawPower, prevPower)
-	local safeMaxPower = rc32SafeNumber(rawMaxPower, prevMaxPower)
+	local safeHealth = SL32SafeNumber(rawHealth, prevHealth)
+	local safeMaxHealth = SL32SafeNumber(rawMaxHealth, prevMaxHealth)
+	local safePower = SL32SafeNumber(rawPower, prevPower)
+	local safeMaxPower = SL32SafeNumber(rawMaxPower, prevMaxPower)
 
-	if rc32CanUseValue(rawHealth) then lastSafeHealth = safeHealth end
-	if rc32CanUseValue(rawMaxHealth) then lastSafeMaxHealth = safeMaxHealth end
-	if rc32CanUseValue(rawPower) then lastSafePower = safePower end
-	if rc32CanUseValue(rawMaxPower) then lastSafeMaxPower = safeMaxPower end
-	if rc32CanUseValue(rawHealth) and rc32CanUseValue(rawMaxHealth) and safeMaxHealth > 0 then
+	if SL32CanUseValue(rawHealth) then lastSafeHealth = safeHealth end
+	if SL32CanUseValue(rawMaxHealth) then lastSafeMaxHealth = safeMaxHealth end
+	if SL32CanUseValue(rawPower) then lastSafePower = safePower end
+	if SL32CanUseValue(rawMaxPower) then lastSafeMaxPower = safeMaxPower end
+	if SL32CanUseValue(rawHealth) and SL32CanUseValue(rawMaxHealth) and safeMaxHealth > 0 then
 		lastSafeHealthPercent = math.floor((safeHealth / safeMaxHealth) * 100)
 	end
-	if rc32CanUseValue(rawPower) and rc32CanUseValue(rawMaxPower) and safeMaxPower > 0 then
+	if SL32CanUseValue(rawPower) and SL32CanUseValue(rawMaxPower) and safeMaxPower > 0 then
 		lastSafePowerPercent = math.floor((safePower / safeMaxPower) * 100)
 	end
 
@@ -2353,15 +2391,15 @@ local function RC32_UpdatePlayerVitals()
 	manaOrb.maxPower = safeMaxPower
 	healthOrb.isDead = UnitIsDeadOrGhost(unit) or false
 	manaOrb.isDead = healthOrb.isDead
-	if not previousHealthValue or rc32SafeNumber(previousHealthValue, 0) == 0 then
+	if not previousHealthValue or SL32SafeNumber(previousHealthValue, 0) == 0 then
 		previousHealthValue = healthOrb.currentHealth
 	end
-	if not previousPowerValue or rc32SafeNumber(previousPowerValue, 0) == 0 then
+	if not previousPowerValue or SL32SafeNumber(previousPowerValue, 0) == 0 then
 		previousPowerValue = manaOrb.currentPower
 	end
 end
 
-local function RC32_UpdatePetVitals()
+local function SL32_UpdatePetVitals()
 	local unit = "pet"
 	local rawHealth = UnitHealth(unit)
 	local rawMaxHealth = UnitHealthMax(unit)
@@ -2377,19 +2415,19 @@ local function RC32_UpdatePetVitals()
 	local prevPower = lastSafePetPower
 	local prevMaxPower = lastSafePetMaxPower
 
-	local safeHealth = rc32SafeNumber(rawHealth, prevHealth)
-	local safeMaxHealth = rc32SafeNumber(rawMaxHealth, prevMaxHealth)
-	local safePower = rc32SafeNumber(rawPower, prevPower)
-	local safeMaxPower = rc32SafeNumber(rawMaxPower, prevMaxPower)
+	local safeHealth = SL32SafeNumber(rawHealth, prevHealth)
+	local safeMaxHealth = SL32SafeNumber(rawMaxHealth, prevMaxHealth)
+	local safePower = SL32SafeNumber(rawPower, prevPower)
+	local safeMaxPower = SL32SafeNumber(rawMaxPower, prevMaxPower)
 
-	if rc32CanUseValue(rawHealth) then lastSafePetHealth = safeHealth end
-	if rc32CanUseValue(rawMaxHealth) then lastSafePetMaxHealth = safeMaxHealth end
-	if rc32CanUseValue(rawPower) then lastSafePetPower = safePower end
-	if rc32CanUseValue(rawMaxPower) then lastSafePetMaxPower = safeMaxPower end
-	if rc32CanUseValue(rawHealth) and rc32CanUseValue(rawMaxHealth) and safeMaxHealth > 0 then
+	if SL32CanUseValue(rawHealth) then lastSafePetHealth = safeHealth end
+	if SL32CanUseValue(rawMaxHealth) then lastSafePetMaxHealth = safeMaxHealth end
+	if SL32CanUseValue(rawPower) then lastSafePetPower = safePower end
+	if SL32CanUseValue(rawMaxPower) then lastSafePetMaxPower = safeMaxPower end
+	if SL32CanUseValue(rawHealth) and SL32CanUseValue(rawMaxHealth) and safeMaxHealth > 0 then
 		lastSafePetHealthPercent = math.floor((safeHealth / safeMaxHealth) * 100)
 	end
-	if rc32CanUseValue(rawPower) and rc32CanUseValue(rawMaxPower) and safeMaxPower > 0 then
+	if SL32CanUseValue(rawPower) and SL32CanUseValue(rawMaxPower) and safeMaxPower > 0 then
 		lastSafePetPowerPercent = math.floor((safePower / safeMaxPower) * 100)
 	end
 
@@ -2397,10 +2435,10 @@ local function RC32_UpdatePetVitals()
 	petOrb.petMaxHealth = safeMaxHealth
 	petOrb.petCurrentPower = safePower
 	petOrb.petMaxPower = safeMaxPower
-	if not previousPetHealth or rc32SafeNumber(previousPetHealth, 0) == 0 then
+	if not previousPetHealth or SL32SafeNumber(previousPetHealth, 0) == 0 then
 		previousPetHealth = petOrb.petCurrentHealth
 	end
-	if not previousPetPower or rc32SafeNumber(previousPetPower, 0) == 0 then
+	if not previousPetPower or SL32SafeNumber(previousPetPower, 0) == 0 then
 		previousPetPower = petOrb.petCurrentPower
 	end
 end
@@ -2416,11 +2454,11 @@ statusFrame:RegisterEvent("UNIT_FLAGS")
 statusFrame:RegisterEvent("UNIT_PET")
 statusFrame:SetScript("OnEvent", function(self, event, unit)
 	if event == "UNIT_PET" or unit == "pet" then
-		RC32_UpdatePetVitals()
+		SL32_UpdatePetVitals()
 		return
 	end
 	if event == "PLAYER_ENTERING_WORLD" or unit == "player" or unit == "vehicle" then
-		RC32_UpdatePlayerVitals()
+		SL32_UpdatePlayerVitals()
 	end
 end)
 
@@ -2432,61 +2470,62 @@ eventFrame:RegisterEvent("UNIT_EXITED_VEHICLE")
 eventFrame:RegisterEvent("PLAYER_REGEN_DISABLED")
 eventFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
 eventFrame:RegisterEvent("UNIT_PET")
-if RC32className == "Druid" then
+if SL32className == "Druid" then
 	eventFrame:RegisterEvent("UPDATE_SHAPESHIFT_FORM")
 end
 
 local flagHide_PetFrame = false
 function eventFrame:OnEvent(event,arg1)
 	if event == "ADDON_LOADED" then
+		SL32_MigrateLegacySavedVars()
 		checkDefaultsFromMemory()
-		handlePlayerFrame(RC32CharacterData.defaultPlayerFrame.show)
+		handlePlayerFrame(SL32CharacterData.defaultPlayerFrame.show)
 		updateColorsFromMemory()
 		UpdateOrbTextures()
-		RC32_UpdatePlayerVitals()
-		RC32_UpdatePetVitals()
+		SL32_UpdatePlayerVitals()
+		SL32_UpdatePetVitals()
 		-- Health orb color is already set by updateColorsFromMemory() using class color
 		local colorTable
-		if RC32className == "Druid" then
+		if SL32className == "Druid" then
 			checkShapeShiftInfo()
 		else
-			RC32UpdateOrbColor(manaOrb,RC32CharacterData.manaOrb.orbColor,RC32CharacterData.manaOrb.galaxy,RC32CharacterData.manaOrb.font1,RC32CharacterData.manaOrb.font2)
+			SL32UpdateOrbColor(manaOrb,SL32CharacterData.manaOrb.orbColor,SL32CharacterData.manaOrb.galaxy,SL32CharacterData.manaOrb.font1,SL32CharacterData.manaOrb.font2)
 		end
 		-- Load saved menu background (also sets border color)
-		if RC32AccountData and RC32AccountData.menuBackground then
-			RC32_SetMenuBackground(RC32AccountData.menuBackground)
+		if SL32AccountData and SL32AccountData.menuBackground then
+			SL32_SetMenuBackground(SL32AccountData.menuBackground)
 		else
-			RC32_SetMenuBackground(1) -- Default to Chicken with white border
+			SL32_SetMenuBackground(1) -- Default to Chicken with white border
 		end
-		RC32GUI:Hide()
+		SL32GUI:Hide()
 	elseif event == "VARIABLES_LOADED" then
-		RC32MiniMapButtonPosition_LoadFromDefaults()
+		SL32MiniMapButtonPosition_LoadFromDefaults()
 	elseif event == "UNIT_ENTERED_VEHICLE" then
 		if arg1 == "player" then
 			vehicleInUse = 1
 			previousPowerValue = 0
 			previousHealthValue = 0
-			RC32_UpdatePlayerVitals()
+			SL32_UpdatePlayerVitals()
 		end
 	elseif event == "UNIT_EXITED_VEHICLE" then
 		if arg1 == "player" then
 			vehicleInUse = 0
 			previousHealthValue = 0
 			previousPowerValue = 0
-			RC32_UpdatePlayerVitals()
+			SL32_UpdatePlayerVitals()
 		end
 	elseif event == "PLAYER_REGEN_DISABLED" then
-		if RC32CharacterData.combat.enabled then
-			RC32UpdateOrbColor(healthOrb,RC32CharacterData.combat.orbColor,RC32CharacterData.combat.galaxy,RC32CharacterData.combat.font1,RC32CharacterData.combat.font2)
-			local cr, cg, cb, ca = safeColor(RC32CharacterData.combat.orbColor)
+		if SL32CharacterData.combat.enabled then
+			SL32UpdateOrbColor(healthOrb,SL32CharacterData.combat.orbColor,SL32CharacterData.combat.galaxy,SL32CharacterData.combat.font1,SL32CharacterData.combat.font2)
+			local cr, cg, cb, ca = safeColor(SL32CharacterData.combat.orbColor)
 			petOrb.filling1:SetVertexColor(cr, cg, cb, ca)
 			-- Power tracker stays class color (no change)
 		end
 	elseif event == "PLAYER_REGEN_ENABLED" then
-		if RC32CharacterData.combat.enabled then
+		if SL32CharacterData.combat.enabled then
 			-- Use saved color for health orb when out of combat
-			RC32UpdateOrbColor(healthOrb, RC32CharacterData.healthOrb.orbColor, RC32CharacterData.healthOrb.galaxy, RC32CharacterData.healthOrb.font1, RC32CharacterData.healthOrb.font2)
-			local hr, hg, hb, ha = safeColor(RC32CharacterData.healthOrb.orbColor)
+			SL32UpdateOrbColor(healthOrb, SL32CharacterData.healthOrb.orbColor, SL32CharacterData.healthOrb.galaxy, SL32CharacterData.healthOrb.font1, SL32CharacterData.healthOrb.font2)
+			local hr, hg, hb, ha = safeColor(SL32CharacterData.healthOrb.orbColor)
 			petOrb.filling1:SetVertexColor(hr, hg, hb, ha)
 			-- Power tracker stays class color (no change needed)
 		end
@@ -2512,7 +2551,7 @@ function eventFrame:OnEvent(event,arg1)
 			end
 			previousPetHealth = 0
 			previousPetPower = 0
-			RC32_UpdatePetVitals()
+			SL32_UpdatePetVitals()
 		end
 	end
 end
@@ -2538,10 +2577,12 @@ local function CommandFunc(cmd)
 	elseif cmd == "help" then
 		
 	else
-		Handle_RC32GUI()
+		Handle_SL32GUI()
 	end
 end
 
 --setup the slash command stuff, hide the GUI
-SlashCmdList["RCM"] = CommandFunc;
-SLASH_RCM1 = "/rcm";
+SlashCmdList["SLM"] = CommandFunc;
+SLASH_SLM1 = "/SLm";
+
+

@@ -1,0 +1,10 @@
+## Title: SL Diablo Orbs
+## Version: 1.0-MoP
+## Author: John Rubin
+## Interface: 120000
+## SavedVariablesPerCharacter: SL32CharacterData, RC32CharacterData
+## SavedVariables: SL32MiniMapButtonPosition, SL32AccountData, RC32MiniMapButtonPosition, RC32AccountData
+## Notes: Fully customizable Diablo Orbs, for WoW!
+SLDiabloOrbs.xml
+SL32MiniMapButton.xml
+

@@ -1,6 +1,6 @@
-﻿<Ui xmlns="http://www.blizzard.com/wow/ui/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
-  <Script file="RC32MiniMapButton.lua" />
-	<Button name="RC32MiniMapButton" parent="Minimap" movable="true" enableMouse="true" frameStrata="LOW">
+<Ui xmlns="http://www.blizzard.com/wow/ui/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <Script file="SL32MiniMapButton.lua" />
+	<Button name="SL32MiniMapButton" parent="Minimap" movable="true" enableMouse="true" frameStrata="LOW">
 		<Size>
 			<AbsDimension x="33" y="33" />
 		</Size>
@@ -11,34 +11,34 @@
 		</Anchors>
 		<Scripts>
 			<OnLoad>
-				RC32MiniMapButton:RegisterForDrag("LeftButton")
+				SL32MiniMapButton:RegisterForDrag("LeftButton")
 				self:RegisterForClicks("LeftButtonUp","RightButtonUp")
 				self:SetScript("OnClick",function(_,arg1)
-					RC32MiniMapButton_OnClick()
+					SL32MiniMapButton_OnClick()
 				end)
-				RC32MiniMapButtonPosition_LoadFromDefaults()
+				SL32MiniMapButtonPosition_LoadFromDefaults()
 			</OnLoad>
 			<OnDragStart>
-				RC32MiniMapButton_DraggingFrame:Show()
+				SL32MiniMapButton_DraggingFrame:Show()
 			</OnDragStart>
 			<OnDragStop>
-				RC32MiniMapButton_DraggingFrame:Hide()
+				SL32MiniMapButton_DraggingFrame:Hide()
 			</OnDragStop>
 			<OnEnter>
-				RC32MinimapButtonTooltip:ClearLines()
-				RC32MinimapButtonTooltip:SetOwner(RC32MiniMapButton,"CENTER")
-				RC32MinimapButtonTooltip:AddLine("RC Diablo Orbs")
-				RC32MinimapButtonTooltip:AddLine("Left click to open the menu")
-				RC32MinimapButtonTooltip:AddLine("Hold Shift and Drag on any orb to move it.")
-				RC32MinimapButtonTooltip:Show()
+				SL32MinimapButtonTooltip:ClearLines()
+				SL32MinimapButtonTooltip:SetOwner(SL32MiniMapButton,"CENTER")
+				SL32MinimapButtonTooltip:AddLine("SL Diablo Orbs")
+				SL32MinimapButtonTooltip:AddLine("Left click to open the menu")
+				SL32MinimapButtonTooltip:AddLine("Hold Shift and Drag on any orb to move it.")
+				SL32MinimapButtonTooltip:Show()
 			</OnEnter>
 			<OnLeave>
-				RC32MinimapButtonTooltip:Hide()
+				SL32MinimapButtonTooltip:Hide()
 			</OnLeave>
 		</Scripts>
 		<Layers>
 			<Layer level="BACKGROUND">
-				<Texture name="RC32MiniMapButton_Icon" file="Interface\addons\RCDiabloOrbs\images\orb_filling5.tga">
+				<Texture name="SL32MiniMapButton_Icon" file="Interface\addons\SLDiabloOrbs\images\orb_filling5.tga">
 					<Size>
 						<AbsDimension x="21" y="21" />
 					</Size>
@@ -64,17 +64,17 @@
 			</Layer>
 		</Layers>
 		<Frames>
-			<Frame name="RC32MiniMapButton_DraggingFrame" hidden="true">
+			<Frame name="SL32MiniMapButton_DraggingFrame" hidden="true">
 				<Scripts>
 					<OnUpdate>
-						RC32_Minimap_Update()
+						SL32_Minimap_Update()
 					</OnUpdate>
 				</Scripts>
 			</Frame>
-			<GameTooltip name="RC32MinimapButtonTooltip" inherits="GameTooltipTemplate">
+			<GameTooltip name="SL32MinimapButtonTooltip" inherits="GameTooltipTemplate">
 				<Layers>
 					<Layer>
-						<FontString font="Interface\addons\RCDiabloOrbs\fonts\Of Wildflowers and Wings.ttf">
+						<FontString font="Interface\addons\SLDiabloOrbs\fonts\Of Wildflowers and Wings.ttf">
 							<FontHeight val="16"></FontHeight>
 						</FontString>
 					</Layer>

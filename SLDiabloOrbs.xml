@@ -1017,7 +1017,7 @@
 		</Anchors>
 		<Layers>
 			<Layer level="BACKGROUND">
-				<Texture file="Interface\AddOns\SLDiabloOrbs\images\CHICKEN_backdrop.tga">
+				<Texture name="SL32ConfigBackground" file="Interface\AddOns\SLDiabloOrbs\images\CHICKEN_backdrop.tga">
 					<Anchors>
 						<Anchor point="TOPLEFT" />
 						<Anchor point="BOTTOMRIGHT" />

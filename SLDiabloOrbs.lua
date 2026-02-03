@@ -1292,6 +1292,12 @@ function SL32_SetMenuBackground(index)
 	if bg and SL32GUIBackground then
 		SL32GUIBackground:SetTexture("Interface\\AddOns\\SLDiabloOrbs\\images\\"..bg.file)
 	end
+	if bg and SL32ConfigBackground then
+		SL32ConfigBackground:SetTexture("Interface\\AddOns\\SLDiabloOrbs\\images\\"..bg.file)
+	end
+	if bg and SL32PreviewBackground then
+		SL32PreviewBackground:SetTexture("Interface\\AddOns\\SLDiabloOrbs\\images\\"..bg.file)
+	end
 	-- Set border color based on background
 	-- Chicken = white, Sindragosa/Lich King/Lich King 2 = purple, Illidan = yellow, Deathwing = red, Alliance = blue, Horde = red
 	local borderColors = {

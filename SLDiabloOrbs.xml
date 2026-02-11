@@ -1210,22 +1210,6 @@
 							</OnClick>
 						</Scripts>
 					</Button>
-					<Button name="PercentageButton" inherits="UIPanelButtonTemplate" text="Percentage">
-						<Size>
-							<AbsDimension x="85" y="23" />
-						</Size>
-						<Anchors>
-							<Anchor point="TOPLEFT">
-								<Offset x="229" y="-17" />
-							</Anchor>
-						</Anchors>
-						<Scripts>
-							<OnClick>
-								SL32HideColorPicker()
-								SL32ColorPicker("Font1")
-							</OnClick>
-						</Scripts>
-					</Button>
 					<Button name="ValueButton" inherits="UIPanelButtonTemplate" text="Value">
 						<Size>
 							<AbsDimension x="75" y="23" />

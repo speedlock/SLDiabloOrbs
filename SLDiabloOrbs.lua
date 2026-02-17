@@ -165,6 +165,26 @@ function SL32_UnregisterUnitWatch(frame)
 	end
 end
 
+-- Re-enable pet orb and show it on next frame so UnitWatch can update (fixes orb not reappearing without reload)
+function SL32_EnablePetOrb()
+	if not petOrb or not petOrb.secure then return end
+	SL32_RegisterUnitWatch(petOrb.secure)
+	SL32CharacterData.petOrb.enabled = true
+	if C_Timer and C_Timer.After then
+		C_Timer.After(0, function()
+			petOrb.secure:Show()
+			if UnitExists("pet") then
+				petOrb:Show()
+			end
+		end)
+	else
+		petOrb.secure:Show()
+		if UnitExists("pet") then
+			petOrb:Show()
+		end
+	end
+end
+
 -- Check if a class exists in this version
 function SL32_ClassExists(className)
 	if className == "Monk" then
@@ -266,7 +286,7 @@ local defaultsTable = {
 	manaOrb = {scale = 1, enabled = true, textures = {fill = "MDO_orb_filling2.tga", rotation = "orb_rotation_bubbles"}, orbColor = {r = Mr, g = Mg, b = Mb, a = Ma},galaxy = {r = Mr, g = Mg, b = Mb, a = Ma}, font1 = {r=1,g=1,b=1,a=1,show = true}, font2 = {r=1,g=1,b=1,a=1,show = true}, formatting = {truncated = true, commaSeparated = false}},
 	
 	--pet orb vars
-	petOrb = {scale = 1, enabled = true, showValue = false, showPercentage = true, healthOrb = {r=Hr,g=Hg,b=Hb,a=Ha}, manaOrb={r=Mr,g=Mg,b=Mb,a=Ma}},
+	petOrb = {scale = 1, enabled = true, showValue = true, showPercentage = false, healthOrb = {r=Hr,g=Hg,b=Hb,a=Ha}, manaOrb={r=Mr,g=Mg,b=Mb,a=Ma}},
 	
 	--orb fonts
 	font = fontChoices[1],
@@ -736,12 +756,10 @@ local function PetHealthUpdate(orb)
 		newDisplayPercentage = 0
 		targetTexHeight = 1
 	end
-	local string1 = math.floor(newDisplayPercentage*100)
-	if tonumber(string1) == nil then string1 = 0 end
-	orb.font1:SetText(string1)
-	
-	local string = valueFormat(currentHealth, true, SL32CharacterData.healthOrb and SL32CharacterData.healthOrb.formatting)
-	orb.font3:SetText(string)
+	-- Pet orb: show value in the big (font1) field only; percentages disabled
+	local valueStr = valueFormat(currentHealth, true, SL32CharacterData.healthOrb and SL32CharacterData.healthOrb.formatting)
+	orb.font1:SetText(valueStr)
+	orb.font3:SetText("")
 
 	if orb.filling1Bar then orb.filling1Bar:Hide() end
 	orb.filling1:Show()
@@ -806,12 +824,10 @@ local function PetPowerUpdate(orb)
 		newDisplayPercentage = 0
 		targetTexHeight = 1
 	end
-	local string1 = math.floor(newDisplayPercentage*100)
-	if tonumber(string1) == nil then string1 = 0 end
-	orb.font2:SetText(string1)
-	
-	local string = valueFormat(currentPower, true, SL32CharacterData.manaOrb and SL32CharacterData.manaOrb.formatting)
-	orb.font4:SetText(string)	
+	-- Pet orb: show value in the big (font2) field only; percentages disabled
+	local valueStr = valueFormat(currentPower, true, SL32CharacterData.manaOrb and SL32CharacterData.manaOrb.formatting)
+	orb.font2:SetText(valueStr)
+	orb.font4:SetText("")	
 
 	if orb.filling2Bar then orb.filling2Bar:Hide() end
 	orb.filling2:Show()
@@ -1726,21 +1742,19 @@ end
 
 
 function checkPetFontPlacement()
-	if SL32CharacterData.petOrb.showValue and SL32CharacterData.petOrb.showPercentage then
-		petOrb.font3:SetPoint("CENTER",-20,-8)
-		petOrb.font4:SetPoint("CENTER",20,-8)
-		petOrb.font1:SetPoint("CENTER",-20,5)
-		petOrb.font2:SetPoint("CENTER",20,5)
-		petOrb.font3:SetFont(SL32CharacterData.font,9,"THINOUTLINE")
-		petOrb.font4:SetFont(SL32CharacterData.font,9,"THINOUTLINE")
-	elseif SL32CharacterData.petOrb.showValue and not SL32CharacterData.petOrb.showPercentage then
-		petOrb.font3:SetPoint("CENTER",-20,0)
-		petOrb.font4:SetPoint("CENTER",20,0)
-		petOrb.font3:SetFont(SL32CharacterData.font,11 * petOrb:GetScale(),"THINOUTLINE")
-		petOrb.font4:SetFont(SL32CharacterData.font,11 * petOrb:GetScale(),"THINOUTLINE")
-	elseif not SL32CharacterData.petOrb.showValue and SL32CharacterData.petOrb.showPercentage then
-		petOrb.font1:SetPoint("CENTER",-20,0)
-		petOrb.font2:SetPoint("CENTER",20,0)
+	-- Pet orb: values only in the big (center) field; percentage option disabled; showValue toggles visibility
+	petOrb.font1:SetPoint("CENTER", -20, 0)
+	petOrb.font2:SetPoint("CENTER", 20, 0)
+	petOrb.font1:SetFont(SL32CharacterData.font, 11 * petOrb:GetScale(), "THINOUTLINE")
+	petOrb.font2:SetFont(SL32CharacterData.font, 11 * petOrb:GetScale(), "THINOUTLINE")
+	petOrb.font3:Hide()
+	petOrb.font4:Hide()
+	if SL32CharacterData.petOrb.showValue then
+		petOrb.font1:Show()
+		petOrb.font2:Show()
+	else
+		petOrb.font1:Hide()
+		petOrb.font2:Hide()
 	end
 end
 
@@ -1860,14 +1874,7 @@ local function checkDefaultsFromMemory()
 	if UsePowerTrackerCheckButton then UsePowerTrackerCheckButton:SetChecked(SL32CharacterData.powerFrame.show) end
 	if ShowBlizzPlayerFrameCheckButton then ShowBlizzPlayerFrameCheckButton:SetChecked(SL32CharacterData.defaultPlayerFrame.show) end
 		
-	if not SL32CharacterData.petOrb.showValue then
-		petOrb.font3:Hide()
-		petOrb.font4:Hide()
-	end
-	if not SL32CharacterData.petOrb.showPercentage then
-		petOrb.font1:Hide()
-		petOrb.font2:Hide()
-	end
+	-- Pet orb: always values in big field; checkPetFontPlacement shows font1/font2, hides font3/font4
 	checkPetFontPlacement()
 	
 	if not SL32CharacterData.petOrb.enabled then
@@ -1876,6 +1883,12 @@ local function checkDefaultsFromMemory()
 			petOrb.secure:Hide()
 		end
 		petOrb:Hide()
+	end
+	if not SL32CharacterData.healthOrb.enabled then
+		healthOrb:Hide()
+	end
+	if not SL32CharacterData.manaOrb.enabled then
+		manaOrb:Hide()
 	end
 	if not SL32CharacterData.artwork.show then
 		angelFrame:Hide()

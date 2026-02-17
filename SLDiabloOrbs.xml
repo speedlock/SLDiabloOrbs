@@ -378,8 +378,7 @@
 				<Scripts>
 					<OnClick>
 						if UsePetOrbCheckButton:GetChecked() then
-							SL32_RegisterUnitWatch(petOrbSecure)
-							SL32CharacterData.petOrb.enabled = true
+							SL32_EnablePetOrb()
 						else
 							SL32_UnregisterUnitWatch(petOrbSecure)
 							petOrb:Hide()
@@ -404,14 +403,10 @@
 				<Scripts>
 					<OnClick>
 						if ShowPetOrbValuesCheckButton:GetChecked() then
-							petOrb.font3:Show()
-							petOrb.font4:Show()
 							SL32CharacterData.petOrb.showValue = true
 							checkPetFontPlacement()
 						else
-							petOrb.font3:Hide()
-							petOrb.font4:Hide()
-							SL32CharacterData.petOrb.showValue = False
+							SL32CharacterData.petOrb.showValue = false
 							checkPetFontPlacement()
 						end
 					</OnClick>
@@ -423,7 +418,7 @@
 				</ButtonText>
 				<NormalFont style="FocusFontSmall" />
 			</CheckButton>
-			<CheckButton name="ShowPetOrbPercentagesCheckButton" inherits="UICheckButtonTemplate" checked="true">
+			<CheckButton name="ShowPetOrbPercentagesCheckButton" inherits="UICheckButtonTemplate" checked="false" hidden="true">
 				<Anchors>
 					<Anchor point="TOPLEFT">
 						<Offset x="200" y="-357" />
@@ -439,7 +434,7 @@
 						else
 							petOrb.font1:Hide()
 							petOrb.font2:Hide()
-							SL32CharacterData.petOrb.showPercentage = False
+							SL32CharacterData.petOrb.showPercentage = false
 							checkPetFontPlacement()
 						end
 					</OnClick>
@@ -881,7 +876,7 @@
 						if SL32SetPowerTrackerRotation then
 							SL32SetPowerTrackerRotation(270)
 						end
-						if SL32RotateValue then SL32RotateValue:SetText("0?") end
+						if SL32RotateValue then SL32RotateValue:SetText("0 deg") end
 					</OnClick>
 				</Scripts>
 			</Button>
@@ -896,7 +891,7 @@
 				</Anchors>
 				<Layers>
 					<Layer level="OVERLAY">
-						<FontString name="SL32RotateValue" inherits="GameFontNormalSmall" text="0?">
+						<FontString name="SL32RotateValue" inherits="GameFontNormalSmall" text="0 deg">
 							<Anchors>
 								<Anchor point="CENTER" />
 							</Anchors>

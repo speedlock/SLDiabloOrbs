@@ -278,15 +278,22 @@ charClassNumber = getClassColor()
 local Hr,Hg,Hb,Ha = orbClassColors[charClassNumber].health.r, orbClassColors[charClassNumber].health.g, orbClassColors[charClassNumber].health.b, orbClassColors[charClassNumber].health.a
 local Mr,Mg,Mb,Ma = orbClassColors[charClassNumber].mana.r, orbClassColors[charClassNumber].mana.g, orbClassColors[charClassNumber].mana.b, orbClassColors[charClassNumber].mana.a
 
+-- Default orb positions (UIParent, BOTTOM anchor) for per-orb Shift+drag and reset
+local defaultOrbPositions = {
+	healthOrb = { point = "BOTTOM", relativePoint = "BOTTOM", x = -250, y = 0 },
+	manaOrb   = { point = "BOTTOM", relativePoint = "BOTTOM", x = 250, y = 0 },
+	petOrb    = { point = "BOTTOM", relativePoint = "BOTTOM", x = -345, y = 145 },
+}
+
 local defaultsTable = {
 	--health orb vars
-	healthOrb = {scale = 1, enabled = true, textures = {fill = "MDO_orb_filling2.tga", rotation = "orb_rotation_bubbles"}, orbColor = {r = Hr, g = Hg, b = Hb, a= Ha}, galaxy = {r = Hr, g = Hg, b = Hb, a= Ha}, font1 = {r=1,g=1,b=1,a=1,show = true}, font2 = {r=1,g=1,b=1,a=1,show = true}, formatting = {truncated = true, commaSeparated = false}},
+	healthOrb = {scale = 1, enabled = true, position = defaultOrbPositions.healthOrb, textures = {fill = "MDO_orb_filling2.tga", rotation = "orb_rotation_bubbles"}, orbColor = {r = Hr, g = Hg, b = Hb, a= Ha}, galaxy = {r = Hr, g = Hg, b = Hb, a= Ha}, font1 = {r=1,g=1,b=1,a=1,show = true}, font2 = {r=1,g=1,b=1,a=1,show = true}, formatting = {truncated = true, commaSeparated = false}},
 
 	--mana orb vars
-	manaOrb = {scale = 1, enabled = true, textures = {fill = "MDO_orb_filling2.tga", rotation = "orb_rotation_bubbles"}, orbColor = {r = Mr, g = Mg, b = Mb, a = Ma},galaxy = {r = Mr, g = Mg, b = Mb, a = Ma}, font1 = {r=1,g=1,b=1,a=1,show = true}, font2 = {r=1,g=1,b=1,a=1,show = true}, formatting = {truncated = true, commaSeparated = false}},
+	manaOrb = {scale = 1, enabled = true, position = defaultOrbPositions.manaOrb, textures = {fill = "MDO_orb_filling2.tga", rotation = "orb_rotation_bubbles"}, orbColor = {r = Mr, g = Mg, b = Mb, a = Ma},galaxy = {r = Mr, g = Mg, b = Mb, a = Ma}, font1 = {r=1,g=1,b=1,a=1,show = true}, font2 = {r=1,g=1,b=1,a=1,show = true}, formatting = {truncated = true, commaSeparated = false}},
 	
 	--pet orb vars
-	petOrb = {scale = 1, enabled = true, showValue = true, showPercentage = false, healthOrb = {r=Hr,g=Hg,b=Hb,a=Ha}, manaOrb={r=Mr,g=Mg,b=Mb,a=Ma}},
+	petOrb = {scale = 1, enabled = true, position = defaultOrbPositions.petOrb, showValue = true, showPercentage = false, healthOrb = {r=Hr,g=Hg,b=Hb,a=Ha}, manaOrb={r=Mr,g=Mg,b=Mb,a=Ma}},
 	
 	--orb fonts
 	font = fontChoices[1],
@@ -432,8 +439,13 @@ end
 --handlePlayerFrame(SL32CharacterData.defaultPlayerFrame.show)
 
 
---function to make any frame object movable
-local function makeFrameMovable(frame,button)
+-- List of drag overlays for orbs; we enable mouse only when Shift is held so targeting still works
+SL32_OrbDragOverlays = SL32_OrbDragOverlays or {}
+local SL32_ShiftDragUpdateThrottle = 0
+
+--function to make any frame object movable; orbType = "health"|"mana"|"pet" to save position on drag
+-- Orbs have a secure button on top for targeting, so we add a non-secure overlay that only captures drag when Shift is held
+local function makeFrameMovable(frame, button, orbType)
 	local btnString = "LeftButton"
 	if button then
 		btnString = button
@@ -443,12 +455,50 @@ local function makeFrameMovable(frame,button)
 	frame:SetMovable(true)
 	frame:EnableMouse(true)
 	frame:RegisterForDrag(btnString)
-	frame:SetScript("OnDragStart", function(self) 
+	frame:SetScript("OnDragStart", function(self)
 		if IsShiftKeyDown() then
 			self:StartMoving()
 		end
-	 end)
-	frame:SetScript("OnDragStop", function(self) self:StopMovingOrSizing() end)
+	end)
+	frame:SetScript("OnDragStop", function(self)
+		self:StopMovingOrSizing()
+		if orbType and SL32CharacterData and SL32CharacterData[orbType .. "Orb"] then
+			local point, _, relativePoint, x, y = self:GetPoint(1)
+			if point and x and y then
+				SL32CharacterData[orbType .. "Orb"].position = { point = point, relativePoint = relativePoint or point, x = x, y = y }
+			end
+		end
+	end)
+
+	-- When orbType is set, the frame has a secure child on top that eats mouse; add overlay that is only active when Shift is held
+	if orbType and frame.secure then
+		local overlay = CreateFrame("Frame", nil, frame)
+		overlay:SetAllPoints(frame)
+		overlay:SetFrameLevel(frame.secure:GetFrameLevel() + 1)
+		overlay:EnableMouse(false)
+		overlay:RegisterForDrag(btnString)
+		overlay:SetScript("OnDragStart", function(self)
+			local parent = self:GetParent()
+			if parent and IsShiftKeyDown() then
+				parent:StartMoving()
+			end
+		end)
+		overlay:SetScript("OnDragStop", function(self)
+			local parent = self:GetParent()
+			if parent then
+				parent:StopMovingOrSizing()
+				if SL32CharacterData and SL32CharacterData[orbType .. "Orb"] then
+					local point, _, relativePoint, x, y = parent:GetPoint(1)
+					if point and x and y then
+						SL32CharacterData[orbType .. "Orb"].position = { point = point, relativePoint = relativePoint or point, x = x, y = y }
+					end
+				end
+			end
+		end)
+		overlay.orbType = orbType
+		frame.dragOverlay = overlay
+		table.insert(SL32_OrbDragOverlays, overlay)
+	end
 end
 
 local function commaFormatValue(val)
@@ -1087,10 +1137,14 @@ local function CreatePetOrb(parent,name,size,offsetX,offsetY,monitorFunc)
 		updatePetValues(orb)
 	end)
 	
-	--position defaults
+	--position defaults (UIParent = per-orb positioning; else anchored to parent e.g. healthOrb)
 	orb:ClearAllPoints()
-	orb:SetPoint("CENTER",offsetX,offsetY)
-	
+	if parent == UIParent then
+		orb:SetPoint("BOTTOM", parent, "BOTTOM", offsetX, offsetY)
+	else
+		orb:SetPoint("CENTER", parent, "CENTER", offsetX, offsetY)
+	end
+
 	--show the orb
 	orb:Show()
 
@@ -1801,6 +1855,7 @@ end
 
 local function checkDefaultsFromMemory()
 	if not SL32CharacterData.healthOrb then SL32CharacterData.healthOrb = defaultsTable.healthOrb end
+	if not SL32CharacterData.healthOrb.position then SL32CharacterData.healthOrb.position = defaultOrbPositions.healthOrb end
 	if not SL32CharacterData.healthOrb.textures then SL32CharacterData.healthOrb.textures = defaultTextures.healthOrb end
 	if not SL32CharacterData.healthOrb.textures.fill then SL32CharacterData.healthOrb.textures.fill = defaultTextures.healthOrb.fill end
 	if not SL32CharacterData.healthOrb.textures.rotation then SL32CharacterData.healthOrb.textures.rotation = defaultTextures.healthOrb.rotation end
@@ -1809,6 +1864,7 @@ local function checkDefaultsFromMemory()
 	if SL32CharacterData.healthOrb.font2.show == nil then SL32CharacterData.healthOrb.font2.show = defaultsTable.healthOrb.font2.show end
 	if not SL32CharacterData.healthOrb.formatting then SL32CharacterData.healthOrb.formatting = defaultsTable.healthOrb.formatting end
 	if not SL32CharacterData.manaOrb then SL32CharacterData.manaOrb = defaultsTable.manaOrb end
+	if not SL32CharacterData.manaOrb.position then SL32CharacterData.manaOrb.position = defaultOrbPositions.manaOrb end
 	if not SL32CharacterData.manaOrb.textures then SL32CharacterData.manaOrb.textures = defaultTextures.manaOrb end
 	if not SL32CharacterData.manaOrb.textures.fill then SL32CharacterData.manaOrb.textures.fill = defaultTextures.manaOrb.fill end
 	if not SL32CharacterData.manaOrb.textures.rotation then SL32CharacterData.manaOrb.textures.rotation = defaultTextures.manaOrb.rotation end
@@ -1824,6 +1880,7 @@ local function checkDefaultsFromMemory()
 	if not SL32CharacterData.artwork then SL32CharacterData.artwork = defaultsTable.artwork end
 	if not SL32CharacterData.font then SL32CharacterData.font = defaultsTable.font end
 	if not SL32CharacterData.petOrb then SL32CharacterData.petOrb = defaultsTable.petOrb end
+	if not SL32CharacterData.petOrb.position then SL32CharacterData.petOrb.position = defaultOrbPositions.petOrb end
 	if not SL32CharacterData.petOrb.scale then SL32CharacterData.petOrb.scale = defaultsTable.petOrb.scale end
 	if not SL32CharacterData.powerFrame then SL32CharacterData.powerFrame = defaultsTable.powerFrame end
 	if SL32CharacterData.powerFrame.maxStackSound == nil then SL32CharacterData.powerFrame.maxStackSound = defaultsTable.powerFrame.maxStackSound end
@@ -1877,6 +1934,9 @@ local function checkDefaultsFromMemory()
 	-- Pet orb: always values in big field; checkPetFontPlacement shows font1/font2, hides font3/font4
 	checkPetFontPlacement()
 	
+	-- Apply saved orb positions (per-orb Shift+drag)
+	if SL32_ApplyOrbPositions then SL32_ApplyOrbPositions() end
+
 	if not SL32CharacterData.petOrb.enabled then
 		if petOrb.secure then
 			SL32_UnregisterUnitWatch(petOrb.secure)
@@ -2503,11 +2563,35 @@ end
 --alloc the orbs and assign them to the health/mana orb variables, make them both movable from the get-go for testing
 healthOrb = CreateOrb(nil,"SL32_HealthOrb",defaultOrbSize,defaultTextures.healthOrb.fill,defaultTextures.healthOrb.rotation,-250,0,"BOTTOM",monitorHealth)
 manaOrb = CreateOrb(nil,"SL32_ManaOrb",defaultOrbSize,defaultTextures.manaOrb.fill,defaultTextures.manaOrb.rotation,250,0,"BOTTOM",monitorPower)
-petOrb = CreatePetOrb(healthOrb,"SL32_PetOrb",87,-95,70,nil)
+petOrb = CreatePetOrb(UIParent,"SL32_PetOrb",87,-345,145,nil)
 healthOrbSecure = healthOrb.secure
 manaOrbSecure = manaOrb.secure
 petOrbSecure = petOrb.secure
 powerFrame = nil
+
+-- Apply saved (or default) positions to orbs; used on load and after reset
+function SL32_ApplyOrbPositions()
+	if not healthOrb or not manaOrb or not petOrb then return end
+	local function applyOne(orb, dataKey, defaultPos)
+		local pos = (SL32CharacterData[dataKey] and SL32CharacterData[dataKey].position) or defaultPos
+		if not pos then return end
+		orb:SetParent(UIParent)
+		orb:ClearAllPoints()
+		orb:SetPoint(pos.point or "BOTTOM", UIParent, pos.relativePoint or "BOTTOM", pos.x or 0, pos.y or 0)
+	end
+	applyOne(healthOrb, "healthOrb", defaultOrbPositions.healthOrb)
+	applyOne(manaOrb, "manaOrb", defaultOrbPositions.manaOrb)
+	applyOne(petOrb, "petOrb", defaultOrbPositions.petOrb)
+end
+
+-- Reset all orb positions to defaults and apply (called from config menu)
+function SL32_ResetOrbPositions()
+	if not SL32CharacterData then return end
+	SL32CharacterData.healthOrb.position = { point = "BOTTOM", relativePoint = "BOTTOM", x = -250, y = 0 }
+	SL32CharacterData.manaOrb.position   = { point = "BOTTOM", relativePoint = "BOTTOM", x = 250, y = 0 }
+	SL32CharacterData.petOrb.position    = { point = "BOTTOM", relativePoint = "BOTTOM", x = -345, y = 145 }
+	SL32_ApplyOrbPositions()
+end
 
 -- Define segment counts per class (MoP 5.4.8)
 -- Some classes/power types only exist in certain expansions
@@ -2593,9 +2677,39 @@ else
 end
 angelFrame = addArtwork(images.."d3_angel2test.tga",manaOrb,"AngelFrame",70,5,160,160)
 demonFrame = addArtwork(images.."d3_demon2test.tga",healthOrb,"DemonFrame",-90,5,160,160)
-makeFrameMovable(healthOrb)
-makeFrameMovable(manaOrb)
-makeFrameMovable(petOrb)
+makeFrameMovable(healthOrb, nil, "health")
+makeFrameMovable(manaOrb, nil, "mana")
+makeFrameMovable(petOrb, nil, "pet")
+
+-- Enable drag overlays only when Shift is held so normal click still targets
+do
+	local shiftWatcher = CreateFrame("Frame")
+	local lastShift = nil
+	shiftWatcher:SetScript("OnUpdate", function(self)
+		local shift = IsShiftKeyDown()
+		if shift == lastShift then return end
+		lastShift = shift
+		for _, overlay in ipairs(SL32_OrbDragOverlays) do
+			if overlay and overlay.EnableMouse then
+				overlay:EnableMouse(shift)
+				-- If Shift was released mid-drag, overlay never gets OnDragStop; stop the orb and save position
+				if not shift then
+					local parent = overlay:GetParent()
+					if parent and parent.StopMovingOrSizing then
+						parent:StopMovingOrSizing()
+						local ot = overlay.orbType
+						if ot and SL32CharacterData and SL32CharacterData[ot .. "Orb"] then
+							local point, _, relativePoint, x, y = parent:GetPoint(1)
+							if point and x and y then
+								SL32CharacterData[ot .. "Orb"].position = { point = point, relativePoint = relativePoint or point, x = x, y = y }
+							end
+						end
+					end
+				end
+			end
+		end
+	end)
+end
 
 local function SL32_UpdatePlayerVitals()
 	local unit = (vehicleInUse == 1) and "vehicle" or "player"

@@ -259,6 +259,21 @@
 					</OnClick>
 				</Scripts>
 			</Button>
+			<Button name="ResetOrbPositionsButton" inherits="UIPanelButtonTemplate" text="Reset Orb Positions">
+				<Size>
+					<AbsDimension x="120" y="23" />
+				</Size>
+				<Anchors>
+					<Anchor point="BOTTOM">
+						<Offset x="-100" y="10" />
+					</Anchor>
+				</Anchors>
+				<Scripts>
+					<OnMouseUp>
+						if SL32_ResetOrbPositions then SL32_ResetOrbPositions() end
+					</OnMouseUp>
+				</Scripts>
+			</Button>
 			<Button name="CloseButton" inherits="UIPanelButtonTemplate" text="Close">
 				<Size>
 					<AbsDimension x="75" y="23" />

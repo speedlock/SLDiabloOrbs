@@ -29,6 +29,8 @@ SL32_IS_CATA = SL32_TOC_VERSION >= 40000 and SL32_TOC_VERSION < 50000
 SL32_IS_MOP = SL32_TOC_VERSION >= 50000 and SL32_TOC_VERSION < 60000
 SL32_IS_MOP_OR_LATER = SL32_TOC_VERSION >= 50000
 SL32_IS_CATA_OR_LATER = SL32_TOC_VERSION >= 40000
+-- WOW_PROJECT_ID is most reliable for Retail (added 8.0); TOC fallback for older addon loads
+SL32_IS_RETAIL = (WOW_PROJECT_MAINLINE and WOW_PROJECT_ID == WOW_PROJECT_MAINLINE) or (SL32_TOC_VERSION >= 100000)
 
 local function SL32CanUseValue(value)
 	if issecretvalue and issecretvalue(value) then
@@ -110,6 +112,9 @@ SL32_POWER_CHI = SL32_IS_MOP_OR_LATER and 12 or nil
 SL32_POWER_SHADOW_ORBS = SL32_IS_CATA_OR_LATER and (SL32_IS_MOP_OR_LATER and 13 or "SHADOW_ORBS") or nil
 SL32_POWER_BURNING_EMBERS = SL32_IS_MOP_OR_LATER and 14 or nil
 SL32_POWER_DEMONIC_FURY = SL32_IS_MOP_OR_LATER and 15 or nil
+SL32_POWER_ARCANE_CHARGES = SL32_IS_MOP_OR_LATER and 16 or nil
+SL32_POWER_ESSENCE = SL32_IS_RETAIL and 19 or nil   -- Evoker (Dragonflight+)
+SL32_POWER_RUNES = SL32_TOC_VERSION >= 30000 and 5 or nil  -- Death Knight runes (Wrath+)
 
 -- Safe UnitPower wrapper that handles version differences
 function SL32_UnitPower(unit, powerType)
@@ -248,7 +253,9 @@ orbClassColors = {
 
 	[9] = {health = {r = 0.33, g = 0.54, b = 0.52, a = 1},mana = {r = 1.00, g = 1.00, b = 1.00, a = 1},  animation = "SPELLS\\GreenRadiationFog.m2", name = "Monk"}, --monk preset
 
-	[10] = {health = {r = 1.00, g = 0.49, b = 0.04, a = 1},mana = {r = 0.0, g = 0.44, b = 0.87, a = 1},  animation = "SPELLS\\WhiteRadiationFog.m2", name = "Druid"} --druid preset
+	[10] = {health = {r = 1.00, g = 0.49, b = 0.04, a = 1},mana = {r = 0.0, g = 0.44, b = 0.87, a = 1},  animation = "SPELLS\\WhiteRadiationFog.m2", name = "Druid"}, --druid preset
+	[11] = {health = {r = 0.64, g = 0.19, b = 0.79, a = 1},mana = {r = 0.64, g = 0.19, b = 0.79, a = 1},  animation = "SPELLS\\WhiteRadiationFog.m2", name = "Demon Hunter"},
+	[12] = {health = {r = 0.33, g = 0.69, b = 0.69, a = 1},mana = {r = 0.33, g = 0.69, b = 0.69, a = 1},  animation = "SPELLS\\WhiteRadiationFog.m2", name = "Evoker"}  -- Retail classes
 }
 
 local fontChoices = {
@@ -1385,6 +1392,7 @@ function SL32_SetMenuBackground(index)
 end
 
 function SL32MonitorPowers(frame)
+	if not powerFrame or not powerFrame.text then return end
 	local powerType
 	powerFrame.text:SetPoint("CENTER",-1,0)
 	if SL32className == "Warlock" then
@@ -1395,20 +1403,26 @@ function SL32MonitorPowers(frame)
 			return
 		end
 		local maxResource = 0
-		local usable, nomana = IsUsableSpell("Metamorphosis")
-		if usable or (not usable and nomana) then
-			powerType = SL32_IS_MOP_OR_LATER and 15 or nil
-			maxResource = 1000
-		end
-		usable, nomana = IsUsableSpell("Chaos Bolt")
-		if usable or (not usable and nomana) then
-			powerType = SL32_IS_MOP_OR_LATER and 14 or nil
-			maxResource = 3
-		end
-		usable, nomana = IsUsableSpell("Soulburn")
-		if usable or (not usable and nomana) then
+		if SL32_IS_RETAIL then
+			-- Retail: all specs use Soul Shards (max 5)
 			powerType = SL32_POWER_SOUL_SHARDS
-			maxResource = 3
+			maxResource = 5
+		else
+			local usable, nomana = IsUsableSpell("Metamorphosis")
+			if usable or (not usable and nomana) then
+				powerType = SL32_IS_MOP_OR_LATER and 15 or nil
+				maxResource = 1000
+			end
+			usable, nomana = IsUsableSpell("Chaos Bolt")
+			if usable or (not usable and nomana) then
+				powerType = SL32_IS_MOP_OR_LATER and 14 or nil
+				maxResource = 3
+			end
+			usable, nomana = IsUsableSpell("Soulburn")
+			if usable or (not usable and nomana) then
+				powerType = SL32_POWER_SOUL_SHARDS
+				maxResource = 3
+			end
 		end
 		if not powerType then
 			frame.backDrop:Hide()
@@ -1473,7 +1487,8 @@ function SL32MonitorPowers(frame)
 		if numHolyPower > 1 then
 			powerFrame.text:SetPoint("CENTER",1,0)
 		end
-		if numHolyPower >=3 then
+		local maxHolyPower = SL32_UnitPowerMax("player", powerType) or 3
+		if numHolyPower >= maxHolyPower then
 			powerFrame.fontHolder.animGroup:Play()
 		else
 			powerFrame.fontHolder.animGroup:Stop()
@@ -1501,7 +1516,8 @@ function SL32MonitorPowers(frame)
 		if numHolyPower > 1 then
 			powerFrame.text:SetPoint("CENTER",1,0)
 		end
-		if numHolyPower >=4 then
+		local maxChi = SL32_UnitPowerMax("player", powerType) or 4
+		if numHolyPower >= maxChi then
 			powerFrame.fontHolder.animGroup:Play()
 		else
 			powerFrame.fontHolder.animGroup:Stop()
@@ -1551,7 +1567,8 @@ function SL32MonitorPowers(frame)
 		if comboPoints > 1 then
 			powerFrame.text:SetPoint("CENTER",1,0)
 		end
-		if comboPoints >=5 then
+		local maxCombo = SL32_UnitPowerMax("player", 4) or 5  -- 4 = ComboPoints
+		if comboPoints >= maxCombo then
 			powerFrame.fontHolder.animGroup:Play()
 		else
 			powerFrame.fontHolder.animGroup:Stop()
@@ -1585,32 +1602,36 @@ local function CreateSegmentedPowerTracker(parentOrb, numSegments, orbSize)
 		b = SL32CharacterData.healthOrb.orbColor.b or 1
 	end
 	
-	-- We have 4 ember segment textures, each covering ~22.5 degrees
-	-- For classes with 3, 4, or 5 segments, we map them appropriately
-	-- Texture 1 = leftmost (10 o'clock area), Texture 4 = rightmost (2 o'clock area)
+	-- Textures 1-4 base; 5 for Warlock; 6 for Rogue/Druid/Death Knight
+	-- Need ember_segment_5.tga and ember_segment_6.tga (copy+rotate with white bg in Photoshop)
+	local function getTexIndex(segmentNum)
+		if segmentNum <= 6 then
+			return segmentNum  -- Use 1-6
+		end
+		return ((segmentNum - 1) % 4) + 1  -- Fallback: cycle 1-4
+	end
 	
 	-- Create backdrop segments (grey, always visible)
 	for i = 1, numSegments do
 		local backdrop = tracker:CreateTexture(nil, "BACKGROUND")
 		backdrop:SetSize(trackerSize, trackerSize)
 		backdrop:SetPoint("CENTER", tracker, "CENTER", 0, 0)
-		-- Use modulo to cycle through available textures if more than 4 segments
-		local texIndex = ((i - 1) % 4) + 1
+		local texIndex = getTexIndex(i)
 		backdrop:SetTexture("Interface\\AddOns\\SLDiabloOrbs\\images\\ember_segment_"..texIndex..".tga")
-		backdrop:SetVertexColor(0.3, 0.3, 0.3, 0.6)  -- Grey, semi-transparent
+		-- Same grey for all unfilled segments so 4 and 5 match
+		local bgR, bgG, bgB = 0.3, 0.3, 0.3
+		backdrop:SetVertexColor(bgR, bgG, bgB, 0.6)
 		backdrop:Show()  -- Always visible
 		tracker.backdropSegments[i] = backdrop
 	end
 	
-	-- Create arc-shaped segments
+	-- Create arc-shaped segments (all centered, same rotation = spin together in 2D)
 	for i = 1, numSegments do
 		local segment = tracker:CreateTexture(nil, "ARTWORK")
 		segment:SetSize(trackerSize, trackerSize)
 		segment:SetPoint("CENTER", tracker, "CENTER", 0, 0)
-		-- Use modulo to cycle through available textures if more than 4 segments
-		local texIndex = ((i - 1) % 4) + 1
+		local texIndex = getTexIndex(i)
 		segment:SetTexture("Interface\\AddOns\\SLDiabloOrbs\\images\\ember_segment_"..texIndex..".tga")
-		-- Use the health orb's class color
 		segment:SetVertexColor(r, g, b, 1)
 		segment:Hide()  -- Start hidden
 		tracker.segments[i] = segment
@@ -1656,16 +1677,27 @@ local function CreateSegmentedPowerTracker(parentOrb, numSegments, orbSize)
 		end
 	end
 	
-	-- Set rotation (in degrees, clockwise) - rotates entire tracker around the orb
-	-- This rotates each texture by the same amount, causing the whole arc to spin around
+	-- Set rotation (in degrees, clockwise) - per-segment offsets to close gaps
 	tracker.SetRotation = function(self, degrees)
 		self.baseRotation = degrees
-		-- WoW's SetRotation uses radians, positive = counter-clockwise
-		-- So we negate to make positive degrees = clockwise
 		local radians = -math.rad(degrees)
+		local stepInner = 2.5 -- degrees for segments 2-4 (closes gap in 1-4)
+		local offset5 = 10   -- segment 5 offset (closes gap with segment 4)
+		local step5to6 = 3   -- delta 5→6 (keeping this since 5-6 gap is perfect)
 		for i = 1, self.numSegments do
-			self.segments[i]:SetRotation(radians)
-			self.backdropSegments[i]:SetRotation(radians)
+			local offset
+			if i >= 6 then
+				offset = math.rad(offset5 + step5to6)
+			elseif i >= 5 then
+				offset = math.rad(offset5)
+			elseif i >= 2 then
+				offset = math.rad((i - 1) * stepInner)
+			else
+				offset = 0
+			end
+			local r = radians + offset
+			self.segments[i]:SetRotation(r)
+			self.backdropSegments[i]:SetRotation(r)
 		end
 	end
 	
@@ -1684,17 +1716,24 @@ function SL32MonitorSegmentedPowers(frame)
 	
 	if SL32className == "Warlock" then
 		if SL32_IS_CATA_OR_LATER then
-			powerType = UnitPowerType("player")
-			if powerType == 0 then
-				if SL32_IS_MOP_OR_LATER and SL32_UnitPowerMax("player", 14) > 0 then
-					powerType = 14  -- Burning Embers
-				elseif SL32_IS_MOP_OR_LATER and SL32_UnitPowerMax("player", 11) > 0 then
-					powerType = 11  -- Demonic Fury
-				else
-					powerType = SL32_POWER_SOUL_SHARDS
+			if SL32_IS_RETAIL then
+				-- Retail: all specs use Soul Shards (Burning Embers/Demonic Fury removed in Legion)
+				powerType = SL32_POWER_SOUL_SHARDS
+				numPower = SL32_UnitPower("player", powerType)
+			else
+				-- Pre-Retail: check for Metamorphosis/Demo Fury, Chaos Bolt/Burning Embers, or Soul Shards
+				powerType = UnitPowerType("player")
+				if powerType == 0 then
+					if SL32_IS_MOP_OR_LATER and SL32_UnitPowerMax("player", 14) > 0 then
+						powerType = 14  -- Burning Embers
+					elseif SL32_IS_MOP_OR_LATER and SL32_UnitPowerMax("player", 11) > 0 then
+						powerType = 11  -- Demonic Fury
+					else
+						powerType = SL32_POWER_SOUL_SHARDS
+					end
 				end
+				numPower = SL32_UnitPower("player", powerType)
 			end
-			numPower = SL32_UnitPower("player", powerType)
 		end
 	elseif SL32className == "Paladin" then
 		if SL32_IS_CATA_OR_LATER and SL32_POWER_HOLY_POWER then
@@ -1711,13 +1750,29 @@ function SL32MonitorSegmentedPowers(frame)
 		segmentedPowerTracker:UpdateSegments(numPower)
 		return
 	elseif SL32className == "Priest" then
-		if SL32_IS_CATA_OR_LATER and SL32_POWER_SHADOW_ORBS then
+		if SL32_IS_CATA_OR_LATER and not SL32_IS_RETAIL and SL32_POWER_SHADOW_ORBS then
+			-- Shadow Orbs removed in Legion; Shadow uses Insanity (bar) in Retail
 			powerType = SL32_POWER_SHADOW_ORBS
 			numPower = SL32_UnitPower("player", powerType)
 		end
 	elseif SL32className == "Shaman" then
-		if SL32_IS_MOP_OR_LATER then
-			powerType = 11  -- Maelstrom
+		if SL32_IS_MOP_OR_LATER and not SL32_IS_RETAIL then
+			powerType = 11  -- Maelstrom (bar in Retail; segmented only in MoP)
+			numPower = SL32_UnitPower("player", powerType)
+		end
+	elseif SL32className == "Death Knight" then
+		if SL32_POWER_RUNES then
+			powerType = SL32_POWER_RUNES
+			numPower = SL32_UnitPower("player", powerType)
+		end
+	elseif SL32className == "Mage" then
+		if SL32_IS_RETAIL and SL32_POWER_ARCANE_CHARGES and SL32_UnitPowerMax("player", SL32_POWER_ARCANE_CHARGES) > 0 then
+			powerType = SL32_POWER_ARCANE_CHARGES
+			numPower = SL32_UnitPower("player", powerType)
+		end
+	elseif SL32className == "Evoker" then
+		if SL32_IS_RETAIL and SL32_POWER_ESSENCE and SL32_UnitPowerMax("player", SL32_POWER_ESSENCE) > 0 then
+			powerType = SL32_POWER_ESSENCE
 			numPower = SL32_UnitPower("player", powerType)
 		end
 	end
@@ -2593,21 +2648,32 @@ function SL32_ResetOrbPositions()
 	SL32_ApplyOrbPositions()
 end
 
--- Define segment counts per class (MoP 5.4.8)
--- Some classes/power types only exist in certain expansions
+-- Define segment counts per class
+-- Retail (TWW/Dragonflight) values; Classic/MoP use legacy values below
 local classPowerSegments = {
-	["Rogue"] = 5,      -- Combo Points (max 5) - all versions
-	["Druid"] = 5,      -- Combo Points in cat form (max 5) - all versions
+	["Rogue"] = 5,      -- Combo Points (max 5 base, 6 with Deeper Stratagem)
+	["Druid"] = 5,      -- Combo Points in cat form (max 5 base, 6 with talent)
 }
 
--- Add expansion-specific classes/power types
-if SL32_IS_CATA_OR_LATER then
+-- Retail: updated max values and new classes
+if SL32_IS_RETAIL then
+	classPowerSegments["Rogue"] = 6      -- Combo Points (up to 6 with Deeper Stratagem)
+	classPowerSegments["Druid"] = 6      -- Combo Points (up to 6 with talent)
+	classPowerSegments["Paladin"] = 5    -- Holy Power (Ret has 5; Holy/Prot use 3)
+	classPowerSegments["Warlock"] = 5    -- Soul Shards (max 5)
+	classPowerSegments["Monk"] = 5       -- Chi (max 5)
+	classPowerSegments["Death Knight"] = 6  -- Runes (6)
+	classPowerSegments["Mage"] = 5       -- Arcane Charges (Arcane spec)
+	classPowerSegments["Evoker"] = 5     -- Essence
+	-- Priest: Shadow Orbs removed in Legion, now uses Insanity (bar) - not segmented
+	-- Shaman: Maelstrom is a bar resource (0-100/150) - not segmented
+elseif SL32_IS_CATA_OR_LATER then
 	classPowerSegments["Paladin"] = 3    -- Holy Power (max 3)
 	classPowerSegments["Warlock"] = 4    -- Soul Shards (max 4)
 	classPowerSegments["Priest"] = 3     -- Shadow Orbs (max 3)
 end
 
-if SL32_IS_MOP_OR_LATER then
+if SL32_IS_MOP_OR_LATER and not SL32_IS_RETAIL then
 	classPowerSegments["Monk"] = 4       -- Chi (max 4, can be 5 with talent)
 	classPowerSegments["Shaman"] = 5     -- Maelstrom Weapon stacks (max 5)
 end
@@ -2616,6 +2682,7 @@ end
 local numSegments = classPowerSegments[SL32className]
 if numSegments then
 	segmentedPowerTracker = CreateSegmentedPowerTracker(healthOrb, numSegments, defaultOrbSize)
+	segmentedPowerTracker:SetRotation(SL32AccountData and SL32AccountData.powerTrackerRotation or 270)
 	segmentedPowerTracker:SetScript("OnUpdate", SL32MonitorSegmentedPowers)
 	-- Show the checkbox and rotation slider for classes that have power tracker
 	if UsePowerTrackerCheckButton then

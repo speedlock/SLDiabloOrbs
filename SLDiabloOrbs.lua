@@ -450,6 +450,17 @@ end
 SL32_OrbDragOverlays = SL32_OrbDragOverlays or {}
 local SL32_ShiftDragUpdateThrottle = 0
 
+-- StopMovingOrSizing is protected during combat; defer until safe to avoid ADDON_ACTION_BLOCKED
+local function safeStopMovingOrSizing(frame, onSuccess)
+	if not frame or not frame.StopMovingOrSizing then return end
+	if InCombatLockdown() then
+		C_Timer.After(0.5, function() safeStopMovingOrSizing(frame, onSuccess) end)
+		return
+	end
+	frame:StopMovingOrSizing()
+	if onSuccess and type(onSuccess) == "function" then onSuccess(frame) end
+end
+
 --function to make any frame object movable; orbType = "health"|"mana"|"pet" to save position on drag
 -- Orbs have a secure button on top for targeting, so we add a non-secure overlay that only captures drag when Shift is held
 local function makeFrameMovable(frame, button, orbType)
@@ -463,18 +474,19 @@ local function makeFrameMovable(frame, button, orbType)
 	frame:EnableMouse(true)
 	frame:RegisterForDrag(btnString)
 	frame:SetScript("OnDragStart", function(self)
-		if IsShiftKeyDown() then
+		if IsShiftKeyDown() and not InCombatLockdown() then
 			self:StartMoving()
 		end
 	end)
 	frame:SetScript("OnDragStop", function(self)
-		self:StopMovingOrSizing()
-		if orbType and SL32CharacterData and SL32CharacterData[orbType .. "Orb"] then
-			local point, _, relativePoint, x, y = self:GetPoint(1)
-			if point and x and y then
-				SL32CharacterData[orbType .. "Orb"].position = { point = point, relativePoint = relativePoint or point, x = x, y = y }
+		safeStopMovingOrSizing(self, function(f)
+			if orbType and SL32CharacterData and SL32CharacterData[orbType .. "Orb"] then
+				local point, _, relativePoint, x, y = f:GetPoint(1)
+				if point and x and y then
+					SL32CharacterData[orbType .. "Orb"].position = { point = point, relativePoint = relativePoint or point, x = x, y = y }
+				end
 			end
-		end
+		end)
 	end)
 
 	-- When orbType is set, the frame has a secure child on top that eats mouse; add overlay that is only active when Shift is held
@@ -486,20 +498,21 @@ local function makeFrameMovable(frame, button, orbType)
 		overlay:RegisterForDrag(btnString)
 		overlay:SetScript("OnDragStart", function(self)
 			local parent = self:GetParent()
-			if parent and IsShiftKeyDown() then
+			if parent and IsShiftKeyDown() and not InCombatLockdown() then
 				parent:StartMoving()
 			end
 		end)
 		overlay:SetScript("OnDragStop", function(self)
 			local parent = self:GetParent()
 			if parent then
-				parent:StopMovingOrSizing()
-				if SL32CharacterData and SL32CharacterData[orbType .. "Orb"] then
-					local point, _, relativePoint, x, y = parent:GetPoint(1)
-					if point and x and y then
-						SL32CharacterData[orbType .. "Orb"].position = { point = point, relativePoint = relativePoint or point, x = x, y = y }
+				safeStopMovingOrSizing(parent, function(f)
+					if SL32CharacterData and SL32CharacterData[orbType .. "Orb"] then
+						local point, _, relativePoint, x, y = f:GetPoint(1)
+						if point and x and y then
+							SL32CharacterData[orbType .. "Orb"].position = { point = point, relativePoint = relativePoint or point, x = x, y = y }
+						end
 					end
-				end
+				end)
 			end
 		end)
 		overlay.orbType = orbType
@@ -2748,33 +2761,47 @@ makeFrameMovable(healthOrb, nil, "health")
 makeFrameMovable(manaOrb, nil, "mana")
 makeFrameMovable(petOrb, nil, "pet")
 
--- Enable drag overlays only when Shift is held so normal click still targets
+-- Enable drag overlays only when Shift is held and not in combat (StartMoving/StopMovingOrSizing are protected)
 do
 	local shiftWatcher = CreateFrame("Frame")
-	local lastShift = nil
+	local lastShift, lastCombat = nil, nil
 	shiftWatcher:SetScript("OnUpdate", function(self)
 		local shift = IsShiftKeyDown()
-		if shift == lastShift then return end
+		local combat = InCombatLockdown()
+		if shift == lastShift and combat == lastCombat then return end
 		lastShift = shift
+		lastCombat = combat
+		local enableOverlay = shift and not combat
 		for _, overlay in ipairs(SL32_OrbDragOverlays) do
 			if overlay and overlay.EnableMouse then
-				overlay:EnableMouse(shift)
-				-- If Shift was released mid-drag, overlay never gets OnDragStop; stop the orb and save position
-				if not shift then
+				overlay:EnableMouse(enableOverlay)
+				-- If Shift released or entered combat mid-drag, stop the orb and save position
+				if not enableOverlay then
 					local parent = overlay:GetParent()
-					if parent and parent.StopMovingOrSizing then
-						parent:StopMovingOrSizing()
+					if parent then
 						local ot = overlay.orbType
-						if ot and SL32CharacterData and SL32CharacterData[ot .. "Orb"] then
-							local point, _, relativePoint, x, y = parent:GetPoint(1)
-							if point and x and y then
-								SL32CharacterData[ot .. "Orb"].position = { point = point, relativePoint = relativePoint or point, x = x, y = y }
+						safeStopMovingOrSizing(parent, function(f)
+							if ot and SL32CharacterData and SL32CharacterData[ot .. "Orb"] then
+								local point, _, relativePoint, x, y = f:GetPoint(1)
+								if point and x and y then
+									SL32CharacterData[ot .. "Orb"].position = { point = point, relativePoint = relativePoint or point, x = x, y = y }
+								end
 							end
-						end
+						end)
 					end
 				end
 			end
 		end
+	end)
+end
+
+-- Protect SL32GUI (config/minimap button) drag from ADDON_ACTION_BLOCKED during combat
+if SL32GUI and SL32GUI.SetScript then
+	SL32GUI:SetScript("OnDragStart", function(self)
+		if not InCombatLockdown() then self:StartMoving() end
+	end)
+	SL32GUI:SetScript("OnDragStop", function(self)
+		safeStopMovingOrSizing(self)
 	end)
 end
 

@@ -2,15 +2,16 @@
 SL32FramesUnlocked = false
 SL32MiniMapButtonPosition = {
 	locationAngle = 45, --deg
-	x = 52-(80*cos(45)),
-	y = ((80*sin(45))-52)
+	x = 52-(80*math.cos(math.rad(45))),
+	y = ((80*math.sin(math.rad(45)))-52)
 }
 
 -- Call this in a mod's initialization to move the minimap button to its saved position (also used in its movement)
 -- ** do not call from the mod's OnLoad, VARIABLES_LOADED or later is fine. **
 function SL32MiniMapButton_Reposition()
-	SL32MiniMapButtonPosition.x = 52-(80*cos(SL32MiniMapButtonPosition.locationAngle))
-	SL32MiniMapButtonPosition.y = ((80*sin(SL32MiniMapButtonPosition.locationAngle))-52)
+	local r = math.rad(SL32MiniMapButtonPosition.locationAngle)
+	SL32MiniMapButtonPosition.x = 52-(80*math.cos(r))
+	SL32MiniMapButtonPosition.y = ((80*math.sin(r))-52)
 	SL32MiniMapButton:SetPoint("TOPLEFT","Minimap","TOPLEFT",SL32MiniMapButtonPosition.x,SL32MiniMapButtonPosition.y)
 end
 

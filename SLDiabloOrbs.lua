@@ -175,19 +175,8 @@ function SL32_EnablePetOrb()
 	if not petOrb or not petOrb.secure then return end
 	SL32_RegisterUnitWatch(petOrb.secure)
 	SL32CharacterData.petOrb.enabled = true
-	if C_Timer and C_Timer.After then
-		C_Timer.After(0, function()
-			petOrb.secure:Show()
-			if UnitExists("pet") then
-				petOrb:Show()
-			end
-		end)
-	else
-		petOrb.secure:Show()
-		if UnitExists("pet") then
-			petOrb:Show()
-		end
-	end
+	safeShowSecure(petOrb.secure)
+	if UnitExists("pet") then petOrb:Show() end
 end
 
 -- Check if a class exists in this version
@@ -459,6 +448,25 @@ local function safeStopMovingOrSizing(frame, onSuccess)
 	end
 	frame:StopMovingOrSizing()
 	if onSuccess and type(onSuccess) == "function" then onSuccess(frame) end
+end
+
+-- Show/Hide on secure frames (e.g. pet orb targeting) are protected; defer until safe
+local function safeShowSecure(frame)
+	if not frame then return end
+	if InCombatLockdown() then
+		C_Timer.After(0.5, function() safeShowSecure(frame) end)
+		return
+	end
+	frame:Show()
+end
+
+local function safeHideSecure(frame)
+	if not frame then return end
+	if InCombatLockdown() then
+		C_Timer.After(0.5, function() safeHideSecure(frame) end)
+		return
+	end
+	frame:Hide()
 end
 
 --function to make any frame object movable; orbType = "health"|"mana"|"pet" to save position on drag
@@ -2008,7 +2016,7 @@ local function checkDefaultsFromMemory()
 	if not SL32CharacterData.petOrb.enabled then
 		if petOrb.secure then
 			SL32_UnregisterUnitWatch(petOrb.secure)
-			petOrb.secure:Hide()
+			safeHideSecure(petOrb.secure)
 		end
 		petOrb:Hide()
 	end
@@ -2990,7 +2998,7 @@ function eventFrame:OnEvent(event,arg1)
 				petOrb.updateFrame:SetScript("OnUpdate", nil)
 			end
 			if petOrb.secure then
-				petOrb.secure:Hide()
+				safeHideSecure(petOrb.secure)
 			end
 		else
 			if petOrb.updateFrame then
@@ -2998,9 +3006,15 @@ function eventFrame:OnEvent(event,arg1)
 					updatePetValues(petOrb)
 				end)
 			end
-			if petOrb.secure then
-				petOrb.secure:Show()
-			end
+			-- Defer secure frame Show to next frame; dismount can leave us in brief protected state
+			C_Timer.After(0, function()
+				if petOrb.secure then
+					safeShowSecure(petOrb.secure)
+				end
+				if UnitExists("pet") then
+					petOrb:Show()
+				end
+			end)
 			previousPetHealth = 0
 			previousPetPower = 0
 			SL32_UpdatePetVitals()

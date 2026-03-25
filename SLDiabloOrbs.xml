@@ -396,7 +396,8 @@
 							SL32_EnablePetOrb()
 						else
 							SL32_UnregisterUnitWatch(petOrbSecure)
-							petOrb:Hide()
+							-- Avoid calling protected :Hide() on a parent frame with secure children.
+							petOrb:SetAlpha(0)
 							if petOrbSecure then petOrbSecure:Hide() end
 							SL32CharacterData.petOrb.enabled = false
 						end
@@ -1472,5 +1473,3 @@
 		</Scripts>
 	</Button>
 </Ui>
-
-

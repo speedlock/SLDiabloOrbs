@@ -176,7 +176,10 @@ function SL32_EnablePetOrb()
 	SL32_RegisterUnitWatch(petOrb.secure)
 	SL32CharacterData.petOrb.enabled = true
 	safeShowSecure(petOrb.secure)
-	if UnitExists("pet") then petOrb:Show() end
+	-- Avoid calling protected :Show()/:Hide() on the parent frame; control visuals with alpha.
+	if SL32_SetPetOrbVisualsVisible then
+		SL32_SetPetOrbVisualsVisible(UnitExists("pet"))
+	end
 end
 
 -- Check if a class exists in this version
@@ -1173,8 +1176,8 @@ local function CreatePetOrb(parent,name,size,offsetX,offsetY,monitorFunc)
 		orb:SetPoint("CENTER", parent, "CENTER", offsetX, offsetY)
 	end
 
-	--show the orb
-	orb:Show()
+	-- Don't use :Show()/:Hide() here—this orb has a secure child, and protected visibility can be blocked in restricted states.
+	orb:SetAlpha(0)
 
 	--fill the orb with colors! WOO!
 	local r, g, b, a = healthOrb.filling:GetVertexColor()
@@ -1204,8 +1207,8 @@ local function CreatePetOrb(parent,name,size,offsetX,offsetY,monitorFunc)
 	end)
 
 	SL32_RegisterUnitWatch(orb.secure)
-	orb.secure:SetScript("OnShow", function() orb:Show() end)
-	orb.secure:SetScript("OnHide", function() orb:Hide() end)
+	-- Secure OnShow/OnHide handlers used to call orb:Show()/orb:Hide(), which are protected.
+	-- Visibility is now controlled by normal event code via SL32_SetPetOrbVisualsVisible().
 
 	--place setup the appropriate character events on the health orb
 	return orb
@@ -2018,7 +2021,10 @@ local function checkDefaultsFromMemory()
 			SL32_UnregisterUnitWatch(petOrb.secure)
 			safeHideSecure(petOrb.secure)
 		end
-		petOrb:Hide()
+		-- Avoid calling protected :Show()/:Hide() on the parent frame.
+		if SL32_SetPetOrbVisualsVisible then
+			SL32_SetPetOrbVisualsVisible(false)
+		end
 	end
 	if not SL32CharacterData.healthOrb.enabled then
 		healthOrb:Hide()
@@ -2645,19 +2651,51 @@ manaOrbSecure = manaOrb.secure
 petOrbSecure = petOrb.secure
 powerFrame = nil
 
+-- Control pet orb visuals without calling protected :Show()/:Hide() on the parent frame.
+function SL32_SetPetOrbVisualsVisible(visible)
+	if not petOrb then return end
+	local a = visible and 1 or 0
+	petOrb:SetAlpha(a)
+	-- Keep secure interactivity in sync with visibility.
+	if petOrb.secure then
+		petOrb.secure:SetAlpha(a)
+	end
+end
+
 -- Apply saved (or default) positions to orbs; used on load and after reset
+local SL32_applyOrbPositionsRetryCount = 0
+local SL32_applyOrbPositionsPending = false
 function SL32_ApplyOrbPositions()
 	if not healthOrb or not manaOrb or not petOrb then return end
+	-- SetPoint/ClearAllPoints are blocked in combat lockdown for frames with secure children.
+	if InCombatLockdown() then
+		if not SL32_applyOrbPositionsPending then
+			SL32_applyOrbPositionsPending = true
+			C_Timer.After(0.5, function()
+				SL32_applyOrbPositionsPending = false
+				SL32_ApplyOrbPositions()
+			end)
+		end
+		return
+	end
 	local function applyOne(orb, dataKey, defaultPos)
 		local pos = (SL32CharacterData[dataKey] and SL32CharacterData[dataKey].position) or defaultPos
 		if not pos then return end
-		orb:SetParent(UIParent)
-		orb:ClearAllPoints()
-		orb:SetPoint(pos.point or "BOTTOM", UIParent, pos.relativePoint or "BOTTOM", pos.x or 0, pos.y or 0)
+		-- Avoid calling protected SetParent; health/mana/pet orbs are already under UIParent.
+		-- Also wrap anchoring calls with pcall since these can be blocked during restricted states.
+		return pcall(function()
+			orb:ClearAllPoints()
+			orb:SetPoint(pos.point or "BOTTOM", UIParent, pos.relativePoint or "BOTTOM", pos.x or 0, pos.y or 0)
+		end)
 	end
-	applyOne(healthOrb, "healthOrb", defaultOrbPositions.healthOrb)
-	applyOne(manaOrb, "manaOrb", defaultOrbPositions.manaOrb)
-	applyOne(petOrb, "petOrb", defaultOrbPositions.petOrb)
+	local ok1 = applyOne(healthOrb, "healthOrb", defaultOrbPositions.healthOrb)
+	local ok2 = applyOne(manaOrb, "manaOrb", defaultOrbPositions.manaOrb)
+	local ok3 = applyOne(petOrb, "petOrb", defaultOrbPositions.petOrb)
+	local ok = ok1 ~= false and ok2 ~= false and ok3 ~= false
+	if not ok and SL32_applyOrbPositionsRetryCount < 3 then
+		SL32_applyOrbPositionsRetryCount = SL32_applyOrbPositionsRetryCount + 1
+		C_Timer.After(0.5, function() SL32_ApplyOrbPositions() end)
+	end
 end
 
 -- Reset all orb positions to defaults and apply (called from config menu)
@@ -2944,6 +2982,9 @@ function eventFrame:OnEvent(event,arg1)
 		UpdateOrbTextures()
 		SL32_UpdatePlayerVitals()
 		SL32_UpdatePetVitals()
+		if SL32_SetPetOrbVisualsVisible then
+			SL32_SetPetOrbVisualsVisible(UnitExists("pet"))
+		end
 		-- Health orb color is already set by updateColorsFromMemory() using class color
 		local colorTable
 		if SL32className == "Druid" then
@@ -3000,6 +3041,9 @@ function eventFrame:OnEvent(event,arg1)
 			if petOrb.secure then
 				safeHideSecure(petOrb.secure)
 			end
+			if SL32_SetPetOrbVisualsVisible then
+				SL32_SetPetOrbVisualsVisible(false)
+			end
 		else
 			if petOrb.updateFrame then
 				petOrb.updateFrame:SetScript("OnUpdate", function()
@@ -3011,10 +3055,11 @@ function eventFrame:OnEvent(event,arg1)
 				if petOrb.secure then
 					safeShowSecure(petOrb.secure)
 				end
-				if UnitExists("pet") then
-					petOrb:Show()
-				end
+				-- orb visibility is driven by orb.secure's OnShow/OnHide handlers
 			end)
+			if SL32_SetPetOrbVisualsVisible then
+				SL32_SetPetOrbVisualsVisible(true)
+			end
 			previousPetHealth = 0
 			previousPetPower = 0
 			SL32_UpdatePetVitals()
